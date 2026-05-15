@@ -1,9 +1,8 @@
 /**
  * @network-ai/test-utils — shared test harnesses.
  *
- * Implementations land in subsequent phases:
- * - Phase 1: `testUserHarness`, `seedFactory`
- * - Phase 5: `agentReplayHarness`
+ * Dev-only — never imported by production code.
  */
 
-export {};
+export { testUserHarness, type TestUser } from './testUserHarness';
+export { seedFactory, type ContactOverrides, type AssetOverrides } from './seedFactory';
