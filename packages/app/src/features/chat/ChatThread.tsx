@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowDown } from 'lucide-react';
 import { MessageBubble, type ChatMessage } from './MessageBubble';
 import { ChatComposer } from './ChatComposer';
+import { useStickToBottom } from './useStickToBottom';
 import type { AgentPhase } from '../../lib/agent';
-import type { Segment } from '../../lib/agent/segments';
 
 export type ChatThreadProps = {
   messages: ChatMessage[];
@@ -13,7 +13,6 @@ export type ChatThreadProps = {
   error: string | null;
   onSubmit: (text: string) => void | Promise<void>;
   onStop?: () => void;
-  streamingSegments?: Segment[];
   phase?: AgentPhase;
   retryHint?: string | null;
 };
@@ -39,99 +38,90 @@ export function ChatThread({
   error,
   onSubmit,
   onStop,
-  streamingSegments,
   phase,
   retryHint,
 }: ChatThreadProps) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
+  const { scrollerRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom();
 
-  useLayoutEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    const nearBottom = el.scrollHeight - el.clientHeight - el.scrollTop < 160;
-    if (nearBottom) el.scrollTop = el.scrollHeight;
-  }, [messages.length, isPending, streamingSegments?.length]);
-
-  useEffect(() => {
-    const el = scrollerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, []);
-
-  const inFlight: ChatMessage | null =
-    isPending && streamingSegments && streamingSegments.length > 0
-      ? {
-          id: '__streaming__',
-          role: 'assistant',
-          text: '',
-          segments: streamingSegments,
-          streaming: true,
-        }
-      : null;
+  const last = messages[messages.length - 1];
+  const lastIsStreaming = !!last?.streaming;
+  const showPhasePill = isPending && phase && phase !== 'idle' && phase !== 'done';
 
   return (
     <section
       data-testid="chat-thread"
-      className="flex h-full min-h-0 flex-col border-r border-border-soft bg-bg"
+      className="relative flex h-full min-h-0 flex-col border-r border-border-soft bg-bg"
     >
-      <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto scroll-smooth">
-        <div className="mx-auto max-w-2xl space-y-5 px-6 py-8">
-          {messages.length === 0 && !inFlight ? (
+      <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto">
+        <div ref={contentRef} className="mx-auto max-w-2xl space-y-5 px-6 py-8">
+          {messages.length === 0 && !isPending ? (
             <EmptyState onPick={onSubmit} />
           ) : (
             <>
               {messages.map((m) => (
                 <MessageBubble key={m.id} message={m} />
               ))}
-              <AnimatePresence>
-                {inFlight ? <MessageBubble key={inFlight.id} message={inFlight} /> : null}
-              </AnimatePresence>
+
+              {showPhasePill && lastIsStreaming ? (
+                <motion.div
+                  key="phase-pill"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="flex items-center gap-2 text-xs text-faint"
+                  data-testid="chat-phase"
+                >
+                  <PendingDots />
+                  <span className="mono">{PHASE_COPY[phase!]}</span>
+                </motion.div>
+              ) : null}
+
+              {retryHint ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-fg/80"
+                  data-testid="chat-retry-hint"
+                >
+                  {retryHint}
+                </motion.div>
+              ) : null}
+
+              {error ? (
+                <div
+                  className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
+                  data-testid="chat-error"
+                  role="alert"
+                >
+                  {error}
+                </div>
+              ) : null}
             </>
           )}
-
-          {isPending && !inFlight ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center gap-2 text-sm text-muted"
-              data-testid="chat-pending"
-            >
-              <PendingDots /> {phase && phase !== 'idle' ? PHASE_COPY[phase] : 'thinking'}
-            </motion.div>
-          ) : null}
-
-          {isPending && inFlight && phase && phase !== 'idle' && phase !== 'done' ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center gap-2 text-xs text-faint"
-              data-testid="chat-phase"
-            >
-              <PendingDots /> <span className="font-mono">{PHASE_COPY[phase]}</span>
-            </motion.div>
-          ) : null}
-
-          {retryHint ? (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-fg/80"
-              data-testid="chat-retry-hint"
-            >
-              {retryHint}
-            </motion.div>
-          ) : null}
-
-          {error ? (
-            <div
-              className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
-              data-testid="chat-error"
-              role="alert"
-            >
-              {error}
-            </div>
-          ) : null}
         </div>
       </div>
+
+      <AnimatePresence>
+        {!isAtBottom && messages.length > 0 ? (
+          <motion.button
+            key="scroll-bottom"
+            type="button"
+            onClick={scrollToBottom}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
+            className="absolute bottom-[88px] left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-fg px-3 py-1.5 text-xs text-bg shadow-lift transition-transform hover:-translate-x-1/2 hover:-translate-y-0.5"
+            data-testid="scroll-to-bottom"
+            aria-label="Scroll to bottom"
+          >
+            <ArrowDown size={12} aria-hidden />
+            <span>New activity</span>
+          </motion.button>
+        ) : null}
+      </AnimatePresence>
+
       <ChatComposer onSubmit={onSubmit} onStop={onStop} isPending={isPending} />
     </section>
   );

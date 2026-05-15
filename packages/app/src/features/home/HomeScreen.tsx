@@ -13,8 +13,10 @@ export type HomeScreenProps = {
 
 export function HomeScreen({ userId, userEmail, onSignOut }: HomeScreenProps) {
   const threadId = useMemo(() => crypto.randomUUID(), []);
-  const { messages, send, stop, isPending, error, streamingSegments, phase, retryHint } =
-    useAgentLoop({ userId, threadId });
+  const { messages, send, stop, isPending, error, phase, retryHint } = useAgentLoop({
+    userId,
+    threadId,
+  });
   const { contacts, assets } = useContacts();
 
   return (
@@ -53,7 +55,6 @@ export function HomeScreen({ userId, userEmail, onSignOut }: HomeScreenProps) {
           error={error}
           onSubmit={send}
           onStop={stop}
-          streamingSegments={streamingSegments}
           phase={phase}
           retryHint={retryHint}
         />

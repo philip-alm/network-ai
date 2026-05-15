@@ -145,6 +145,11 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
     let segments: Segment[] = [];
     const emit = (): void => opts.callbacks?.onSegmentsUpdate?.(segments);
 
+    // Dedupe set — some providers emit tool-result via chunks, others only
+    // via onStepFinish. We fire onToolEnd from whichever lands first, then
+    // skip the other path. (assistant-ui / Vercel ai-chatbot pattern.)
+    const handledToolIds = new Set<string>();
+
     try {
       const stream = streamText({
         model: opts.model,
@@ -153,6 +158,47 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
         tools,
         stopWhen: stepCountIs(opts.maxSteps ?? 12),
         abortSignal: timer.signal,
+        onStepFinish: ({ toolCalls, toolResults }) => {
+          // Belt-and-suspenders: ensure every tool result eventually fires
+          // onToolEnd + lands in segments, even when the provider's
+          // tool-result chunk path is silent (some Anthropic-via-OpenRouter
+          // configs only deliver results in step-finish).
+          const calls = (toolCalls ?? []) as Array<{
+            toolCallId: string;
+            toolName: string;
+            input: unknown;
+          }>;
+          const results = (toolResults ?? []) as Array<{
+            toolCallId: string;
+            output: unknown;
+          }>;
+          for (const tr of results) {
+            if (handledToolIds.has(tr.toolCallId)) continue;
+            const matching = calls.find((c) => c.toolCallId === tr.toolCallId);
+            if (!matching) continue;
+            handledToolIds.add(tr.toolCallId);
+            const out = tr.output as { ok?: boolean } | undefined;
+            const patch: AgentToolInvocation & { id: string } = {
+              id: tr.toolCallId,
+              name: matching.toolName,
+              args: matching.input,
+              result: tr.output,
+              status: out?.ok === false ? 'error' : 'ok',
+            };
+            // If we never saw the tool-call chunk either, prepend the
+            // running segment first so the card has continuity.
+            if (!segments.some((s) => s.kind === 'tool' && s.id === tr.toolCallId)) {
+              segments = startToolSegment(segments, {
+                id: tr.toolCallId,
+                name: matching.toolName,
+                args: matching.input,
+              });
+            }
+            segments = finishToolSegment(segments, patch);
+            emit();
+            opts.callbacks?.onToolEnd?.(patch);
+          }
+        },
         onChunk: ({ chunk }) => {
           timer.tick();
           if (chunk.type === 'text-delta') {
@@ -181,6 +227,8 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
               input: unknown;
               output: unknown;
             };
+            if (handledToolIds.has(tr.toolCallId)) return;
+            handledToolIds.add(tr.toolCallId);
             const out = tr.output as { ok?: boolean } | undefined;
             const patch: AgentToolInvocation & { id: string } = {
               id: tr.toolCallId,
