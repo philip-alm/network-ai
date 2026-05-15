@@ -121,6 +121,42 @@ function CardContent({
     );
   }
 
+  if (parsed.kind === 'find') {
+    const total = parsed.contactsCount + parsed.assetsCount;
+    const previews = [...parsed.contactPreviews, ...parsed.assetPreviews];
+    return (
+      <div className="inline-flex max-w-full items-center gap-2 rounded-md bg-surface-soft px-2.5 py-1 text-xs">
+        <Search size={12} className="shrink-0 text-muted" aria-hidden />
+        <span className="min-w-0 truncate text-muted">
+          <span className="text-fg/85">Found</span>{' '}
+          <span className="mono text-fg">
+            {parsed.contactsCount} {parsed.contactsCount === 1 ? 'contact' : 'contacts'}
+            {parsed.assetsCount > 0 ? (
+              <>
+                {', '}
+                {parsed.assetsCount} {parsed.assetsCount === 1 ? 'asset' : 'assets'}
+              </>
+            ) : null}
+          </span>
+          {total === 0 ? (
+            <span className="text-faint"> — nothing matched</span>
+          ) : previews.length > 0 ? (
+            <>
+              {' '}
+              <span className="text-fg/85">
+                {previews.slice(0, 3).join(', ')}
+                {previews.length < total ? (
+                  <span className="text-faint"> +{total - previews.length} more</span>
+                ) : null}
+              </span>
+            </>
+          ) : null}
+        </span>
+        {timing ? <span className="mono text-faint">· {timing}</span> : null}
+      </div>
+    );
+  }
+
   // Action cards (contact / asset added / updated / deleted)
   const action = actionFor(parsed);
   return (
@@ -156,9 +192,23 @@ function CardContent({
  * doesn't see `mutate_sql` flashing through).
  */
 function runningCopy(name: string, args: unknown): string {
-  if (name === 'search_contacts' || name === 'search_assets') {
-    const q = (args as { query?: string } | undefined)?.query;
-    return q ? `Searching “${truncate(q, 50)}”…` : 'Searching…';
+  if (name === 'find') {
+    const a = (args ?? {}) as {
+      queries?: string[];
+      contains?: string;
+      regex?: string;
+      table?: string;
+      city?: string;
+      any_tags?: string[];
+    };
+    const qs = a.queries?.filter(Boolean) ?? [];
+    const hint =
+      (qs.length > 0 ? `“${truncate(qs.join(', '), 40)}”` : '') ||
+      (a.contains ? `“${truncate(a.contains, 40)}”` : '') ||
+      (a.regex ? `/${truncate(a.regex, 32)}/` : '') ||
+      (a.city ? `in ${a.city}` : '') ||
+      (a.any_tags?.length ? `tags: ${a.any_tags.slice(0, 2).join(', ')}` : '');
+    return hint ? `Searching ${hint}…` : 'Searching network…';
   }
   if (name === 'query_sql') return 'Reading database…';
   if (name === 'mutate_sql') {
@@ -172,11 +222,8 @@ function runningCopy(name: string, args: unknown): string {
   return `${name}…`;
 }
 
-function readQueryText(name: string, args: unknown): string | null {
-  if (name === 'search_contacts' || name === 'search_assets') {
-    const q = (args as { query?: string } | undefined)?.query;
-    return q ? truncate(q, 40) : null;
-  }
+function readQueryText(_name: string, _args: unknown): string | null {
+  // find-style cards build their own preview line; nothing extra to surface here.
   return null;
 }
 

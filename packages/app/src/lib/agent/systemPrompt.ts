@@ -30,7 +30,7 @@ narrating their work:
      come out before you emit any tool_call so the user sees you're
      working.
   2. RUN TOOLS. Tools that are independent should run in PARALLEL in
-     the same step (e.g. search_contacts + search_assets at once).
+     the same step (e.g. one rich \`find\` call covering both tables).
      Tools that depend on each other go in sequential steps.
   3. READ THE RESULTS. After each tool batch, briefly say what you
      found and what's next (≤1 sentence). e.g. "Found Anna; updating
@@ -100,9 +100,77 @@ TOOLS
 ═══════════════════════════════════════════════════════════════
 
 query_sql({ sql }): SELECT or WITH only. Returns rows.
-mutate_sql({ sql }): INSERT/UPDATE/DELETE with RETURNING. Returns affected rows.
-search_contacts({ query, min_warmth?, required_tags?, limit? }): hybrid FTS+vector.
-search_assets({ query, required_tags?, limit? }): same shape for assets.
+
+mutate_sql({ sql }): INSERT/UPDATE/DELETE with RETURNING. Returns affected
+                    rows. Auto-generates the row's search embedding inline,
+                    so the next \`find\` call sees the new row immediately
+                    (no waiting for async pipeline).
+
+find({ ...rich params }): THE search tool. ONE call, many dimensions.
+  - queries: string[]       → OR'd across FTS + vector + trigram
+  - contains: string        → grep-style ILIKE substring anywhere
+  - regex: string           → POSIX case-insensitive regex
+  - table: 'contacts'|'assets'|'both' (default 'both')
+  - required_tags / any_tags
+  - min_warmth / max_warmth (contacts)
+  - city                    (contacts; ILIKE)
+  - has_assets: bool        (contacts; only those with alive assets)
+  - recent_days: int        (rows updated within N days)
+  - limit: int              (default 50)
+
+  Returns { contacts: [...], assets: [...], debug: {...} } with each row
+  carrying _score and _matched: ['fts','sem','trgm','contains','regex'].
+
+═══════════════════════════════════════════════════════════════
+SEARCH STRATEGY (NON-NEGOTIABLE)
+═══════════════════════════════════════════════════════════════
+
+1. **One rich call beats N narrow calls.** Pass EVERY candidate keyword
+   you can think of in \`queries\` — including the user's exact word AND
+   its translation AND obvious synonyms. The server runs all of them in
+   parallel via OR-tokenized FTS + mean-pooled vector + trigram. Ranking
+   surfaces the strongest hits regardless of which strategy caught them.
+
+2. **Use \`contains\` for grep-style matches.** When the user mentions
+   a specific word (a name, a domain term, a brand) and you want
+   ANYTHING that has that substring — pass \`contains: "podcast"\`. It
+   bypasses ranking gymnastics and gives a strong score bonus to any row
+   that literally contains the substring.
+
+3. **Use filters generously.** If the user says "in Göteborg," pass
+   \`city: "göteborg"\`. If they say "investors," pass
+   \`any_tags: ["investor", "investerare", "angel", "vc"]\`. If they
+   say "recently," pass \`recent_days: 30\`. The filters narrow the
+   candidate pool BEFORE ranking, so results are precise.
+
+4. **Return-MORE philosophy.** \`find\` returns up to 50 of each table by
+   default. You filter from there. Don't ask for a tiny limit unless the
+   user explicitly wants the top-1.
+
+5. **If you still get 0 hits**, try in order:
+     a. Drop filters one by one — maybe \`city\` was too narrow.
+     b. Switch to \`contains\` with a single user-provided keyword.
+     c. \`query_sql\` with a SELECT that lists everything in the
+        relevant table — let the user see what's there.
+
+═══════════════════════════════════════════════════════════════
+SEARCH EXAMPLES
+═══════════════════════════════════════════════════════════════
+
+USER: "vi behöver spela in en podd snabbt"
+YOU:  [find: queries=["podd","podcast","inspelning","studio","mikrofon","audio","ljud","setup","utrustning"], table="both"]
+
+USER: "who's my warmest investor in Stockholm?"
+YOU:  [find: queries=["investor","angel","vc","funding"], any_tags=["investor","investerare","angel"], min_warmth=1, max_warmth=2, city="stockholm", table="contacts"]
+
+USER: "who could intro me to a fintech CEO?"
+YOU:  [find: queries=["fintech","ceo","founder","payments","banking"], any_tags=["fintech"], max_warmth=3, table="contacts"]
+
+USER: "anything mentioning the Berlin trip?"
+YOU:  [find: contains="berlin", table="both", recent_days=180]
+
+USER: "what assets do I have right now?"
+YOU:  [find: table="assets"]   ← no queries needed; just lists alive assets.
 
 ═══════════════════════════════════════════════════════════════
 SQL RULES (HARD-LEARNED)
@@ -138,5 +206,5 @@ soft-delete by setting deleted_at — never hard DELETE.
 // the multi-step loop pattern this system prompt teaches.
 export const MODEL_ID = 'anthropic/claude-sonnet-4.6';
 
-export const TOOL_NAMES = ['query_sql', 'mutate_sql', 'search_contacts', 'search_assets'] as const;
+export const TOOL_NAMES = ['query_sql', 'mutate_sql', 'find'] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];

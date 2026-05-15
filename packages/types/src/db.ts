@@ -270,6 +270,25 @@ export type Database = {
       };
       mutate_sql: { Args: { query: string }; Returns: Json };
       query_sql: { Args: { query: string }; Returns: Json };
+      find_anything: {
+        Args: {
+          query_terms?: string[] | null;
+          query_embedding?: unknown;
+          regex_pattern?: string | null;
+          in_contacts?: boolean;
+          in_assets?: boolean;
+          required_tags?: string[] | null;
+          any_tags?: string[] | null;
+          min_warmth?: number | null;
+          max_warmth?: number | null;
+          city_filter?: string | null;
+          contains_filter?: string | null;
+          has_assets?: boolean | null;
+          recent_days?: number | null;
+          match_count?: number;
+        };
+        Returns: Json;
+      };
       read_embedding_jobs: {
         Args: { p_qty?: number; p_vt?: number };
         Returns: {

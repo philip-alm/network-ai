@@ -50,24 +50,160 @@ const MutateSqlSchema = z.object({
     ),
 });
 
-const SearchContactsSchema = z.object({
-  query: z.string().min(1).describe('Natural-language search text.'),
+/**
+ * The unified search tool's schema. Designed for the AI to pass EVERYTHING
+ * it knows in one call — multiple candidate keywords (Swedish + English,
+ * synonyms, brand names), structural filters, AND a grep-style substring
+ * or regex. Postgres does the heavy lifting (see find_anything in 0010).
+ *
+ * All fields are optional. A useful minimum is one of:
+ *   - queries: ['podd', 'podcast', 'inspelning']
+ *   - contains: 'podcast'
+ *   - regex: 'pod.*'
+ *   - required_tags / any_tags / city / etc. (filter-only listing)
+ */
+const FindSchema = z.object({
+  queries: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      'Multiple candidate keywords/phrases. OR-tokenized + prefix-matched ' +
+        'against FTS, mean-pooled for vector search, and trigram-matched. ' +
+        "Pass EVERY candidate term you can think of — including the user's " +
+        'exact word AND its translation (e.g. ["podd", "podcast", "inspelning"]). ' +
+        'Results are ranked; you filter from there.',
+    ),
+  contains: z
+    .string()
+    .optional()
+    .describe(
+      'Grep-style substring (case-insensitive ILIKE) anywhere in name + ' +
+        'notes/description/city. Adds a strong score bonus when it matches.',
+    ),
+  regex: z
+    .string()
+    .optional()
+    .describe(
+      'POSIX regex (case-insensitive). Power-use only — `pod.*utrust` style. ' +
+        'Operates over name + notes/description.',
+    ),
+  table: z
+    .enum(['contacts', 'assets', 'both'])
+    .optional()
+    .default('both')
+    .describe('Which table(s) to search. Default: both.'),
+  required_tags: z
+    .array(z.string())
+    .optional()
+    .describe('Tags AND filter — every listed tag must be present on the row.'),
+  any_tags: z
+    .array(z.string())
+    .optional()
+    .describe('Tags OR filter — row must have at least one of these tags.'),
   min_warmth: z
     .number()
     .int()
     .min(1)
     .max(5)
     .optional()
-    .describe('Max warmth value (lower = warmer). e.g. 2 means "warmth 1 or 2".'),
-  required_tags: z.array(z.string()).optional().describe('All listed tags must be present.'),
-  limit: z.number().int().min(1).max(50).optional().default(10),
+    .describe('Contacts only: warmth >= min_warmth.'),
+  max_warmth: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .optional()
+    .describe(
+      'Contacts only: warmth <= max_warmth. Combine with min_warmth to band ' +
+        '(e.g. min=1,max=2 = "WhatsApp-level or closer").',
+    ),
+  city: z.string().optional().describe('Contacts only: case-insensitive ILIKE on city.'),
+  has_assets: z
+    .boolean()
+    .optional()
+    .describe('Contacts only: only return contacts who have at least one alive asset.'),
+  recent_days: z
+    .number()
+    .int()
+    .min(1)
+    .max(365)
+    .optional()
+    .describe('Only return rows updated within the last N days.'),
+  limit: z.number().int().min(1).max(100).optional().default(50),
 });
 
-const SearchAssetsSchema = z.object({
-  query: z.string().min(1),
-  required_tags: z.array(z.string()).optional(),
-  limit: z.number().int().min(1).max(50).optional().default(10),
-});
+/**
+ * Build the embeddable text for a contact/asset row. Mirrors the FTS
+ * source so the semantic and FTS layers see equivalent input.
+ */
+function embeddableText(row: Record<string, unknown>): string | null {
+  const has = (k: string): boolean => typeof row[k] === 'string';
+  // Heuristic: asset rows have `description`; contact rows have `notes`.
+  if (has('description')) {
+    const tags = Array.isArray(row.tags) ? (row.tags as string[]).join(' ') : '';
+    return (
+      [
+        row.name as string,
+        row.description as string,
+        (row.availability as string | null | undefined) ?? '',
+        tags,
+      ]
+        .filter(Boolean)
+        .join(' — ')
+        .trim() || null
+    );
+  }
+  if (has('name') && (has('notes') || 'warmth' in row)) {
+    const tags = Array.isArray(row.tags) ? (row.tags as string[]).join(' ') : '';
+    return (
+      [
+        row.name as string,
+        (row.notes as string | undefined) ?? '',
+        (row.city as string | undefined) ?? '',
+        tags,
+      ]
+        .filter(Boolean)
+        .join(' — ')
+        .trim() || null
+    );
+  }
+  return null;
+}
+
+/**
+ * Generate an embedding for a single row and write it back. Best-effort:
+ * any failure (embed timeout, no description text, RLS oddity) silently
+ * skips. The cron'd embedding pipeline catches up regardless.
+ */
+async function inlineEmbed(
+  supabase: SupabaseClient,
+  embedQuery: EmbedQueryFn,
+  row: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const id = row.id;
+    if (typeof id !== 'string') return;
+    const text = embeddableText(row);
+    if (!text) return;
+    const vec = await embedQuery(text);
+    const literal = `[${vec.join(',')}]`;
+    // Heuristic for table: assets have `description`/`availability`,
+    // contacts have `warmth`/`notes`. Avoid hard-coding `contact_id`
+    // since it can be null on owned assets.
+    const isAsset = typeof row.description === 'string' || 'availability' in row;
+    const table = isAsset ? 'assets' : 'contacts';
+    await supabase
+      .from(table)
+      .update({
+        embedding: literal,
+        embedding_model: 'text-embedding-3-small',
+        embedding_generated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+  } catch {
+    // Silent — cron'd pipeline is the safety net.
+  }
+}
 
 export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) {
   return {
@@ -105,7 +241,9 @@ export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) 
       'Run ONE INSERT / UPDATE / DELETE statement with a RETURNING clause. RLS auto-scopes. ' +
         'NEVER include user_id (DB defaults to auth.uid()). ' +
         'NEVER use ON CONFLICT — there are no UNIQUE constraints; use plain INSERT. ' +
-        'Returns affected rows on success, or { error, hint, retriable } on failure.',
+        'Returns affected rows on success, or { error, hint, retriable } on failure. ' +
+        "IMPORTANT: this tool also generates the row's search embedding inline " +
+        'so search_* sees it immediately (no waiting for the async pipeline).',
       MutateSqlSchema,
       async ({ sql }) => {
         const cleaned = normalizeSql(sql);
@@ -141,25 +279,63 @@ export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) 
             retriable: false,
           });
         }
+        // Inline-embed any contact/asset rows touched by an INSERT or
+        // text-changing UPDATE. Cron'd embedding pipeline catches up
+        // every ~10s; this closes the gap so search_* sees a fresh row
+        // in the SAME turn it was created. Fire-and-forget per row so
+        // a single embedding failure doesn't fail the whole mutate.
+        const rows = Array.isArray(data) ? (data as Array<Record<string, unknown>>) : [];
+        const isInsert = lc.startsWith('insert');
+        const touchesEmbedFields =
+          isInsert || /\b(name|notes|description|availability|city|tags)\s*=/i.test(cleaned);
+        if (touchesEmbedFields && rows.length > 0) {
+          await Promise.allSettled(rows.map((row) => inlineEmbed(supabase, embedQuery, row)));
+        }
         return { rows: data } as { rows: unknown };
       },
       { recorder },
     ),
 
-    search_contacts: toolWrap(
-      'search_contacts',
-      "Hybrid (semantic + keyword) search over the user's contacts. Use for " +
-        'natural-language queries like "who could help with hardware in göteborg". ' +
-        'Optional structured filters. Returns rows on success.',
-      SearchContactsSchema,
-      async ({ query, min_warmth, required_tags, limit }) => {
-        const embedding = await embedQuery(query);
-        const { data, error } = await supabase.rpc('hybrid_search_contacts', {
-          query_text: query,
-          query_embedding: vectorLiteral(embedding),
-          match_count: limit ?? 10,
-          ...(min_warmth !== undefined ? { min_warmth } : {}),
-          ...(required_tags !== undefined ? { required_tags } : {}),
+    find: toolWrap(
+      'find',
+      'Unified search across contacts AND assets. Designed for one rich call ' +
+        'instead of N narrow ones — pass every candidate keyword you can ' +
+        'think of (Swedish + English, synonyms), every filter you know ' +
+        '(tags, city, warmth band, recency), and optionally a substring or ' +
+        'regex. The server runs 5 strategies in parallel (FTS, vector, ' +
+        'trigram, ILIKE, regex), composite-scores, returns up to 50 of each ' +
+        'table sorted by score. You filter from the result.',
+      FindSchema,
+      async (params) => {
+        const queries = params.queries?.filter((s) => s.trim().length > 0) ?? [];
+        let queryEmbedding: number[] | null = null;
+        if (queries.length > 0) {
+          try {
+            queryEmbedding = await embedQuery(queries.join(' '));
+          } catch {
+            // Embedding service down → continue with FTS/trigram/ILIKE only.
+            queryEmbedding = null;
+          }
+        }
+        const table = params.table ?? 'both';
+        const inContacts = table === 'contacts' || table === 'both';
+        const inAssets = table === 'assets' || table === 'both';
+
+        const { data, error } = await supabase.rpc('find_anything', {
+          query_terms: queries.length > 0 ? queries : null,
+          query_embedding: queryEmbedding ? vectorLiteral(queryEmbedding) : null,
+          regex_pattern: params.regex ?? null,
+          in_contacts: inContacts,
+          in_assets: inAssets,
+          required_tags: params.required_tags ?? null,
+          any_tags: params.any_tags ?? null,
+          min_warmth: params.min_warmth ?? null,
+          max_warmth: params.max_warmth ?? null,
+          city_filter: params.city ?? null,
+          contains_filter: params.contains ?? null,
+          has_assets: params.has_assets ?? null,
+          recent_days: params.recent_days ?? null,
+          match_count: params.limit ?? 50,
         });
         if (error) {
           return toolError({
@@ -168,32 +344,7 @@ export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) 
             retriable: false,
           });
         }
-        return { rows: data } as { rows: unknown };
-      },
-      { recorder },
-    ),
-
-    search_assets: toolWrap(
-      'search_assets',
-      "Hybrid (semantic + keyword) search over the user's assets. Use for " +
-        '"what do we have for X" questions. Returns rows on success.',
-      SearchAssetsSchema,
-      async ({ query, required_tags, limit }) => {
-        const embedding = await embedQuery(query);
-        const { data, error } = await supabase.rpc('hybrid_search_assets', {
-          query_text: query,
-          query_embedding: vectorLiteral(embedding),
-          match_count: limit ?? 10,
-          ...(required_tags !== undefined ? { required_tags } : {}),
-        });
-        if (error) {
-          return toolError({
-            error: error.message,
-            pgCode: (error as { code?: string }).code,
-            retriable: false,
-          });
-        }
-        return { rows: data } as { rows: unknown };
+        return data as { contacts: unknown; assets: unknown; debug: unknown };
       },
       { recorder },
     ),

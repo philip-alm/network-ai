@@ -80,13 +80,17 @@ export function ToolGroup({ calls }: { calls: AgentToolInvocation[] }) {
 }
 
 function readKindFor(c: AgentToolInvocation): 'search' | 'query' {
-  if (c.name === 'search_contacts' || c.name === 'search_assets') return 'search';
+  if (c.name === 'find') return 'search';
   return 'query';
 }
 
 function readQuery(name: string, args: unknown): string | null {
-  if (name === 'search_contacts' || name === 'search_assets') {
-    return (args as { query?: string } | undefined)?.query ?? null;
+  if (name === 'find') {
+    const a = (args ?? {}) as { queries?: string[]; contains?: string };
+    const qs = a.queries?.filter(Boolean) ?? [];
+    if (qs.length > 0) return qs.slice(0, 3).join(', ');
+    if (a.contains) return a.contains;
+    return null;
   }
   return null;
 }
@@ -149,7 +153,7 @@ export function groupReadTools(calls: AgentToolInvocation[]): ToolRun[] {
 }
 
 function readKindOf(c: AgentToolInvocation): 'search' | 'query' | null {
-  if (c.name === 'search_contacts' || c.name === 'search_assets') return 'search';
+  if (c.name === 'find') return 'search';
   if (c.name === 'query_sql') return 'query';
   return null;
 }

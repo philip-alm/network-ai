@@ -30,6 +30,14 @@ export type ToolCardKind =
   | { kind: 'asset_deleted'; asset: Asset }
   | { kind: 'query'; count: number; preview?: unknown }
   | { kind: 'search'; count: number; preview?: unknown }
+  | {
+      kind: 'find';
+      contactsCount: number;
+      assetsCount: number;
+      contactPreviews: string[];
+      assetPreviews: string[];
+      debug?: unknown;
+    }
   | { kind: 'error'; tool: string; error: string; hint: string };
 
 type Envelope = {
@@ -119,9 +127,31 @@ export function parseToolResult(
     }
     case 'query_sql':
       return { kind: 'query', count: rows.length };
-    case 'search_contacts':
-    case 'search_assets':
-      return { kind: 'search', count: rows.length };
+    case 'find': {
+      const data = out.data as
+        | {
+            contacts?: Array<Record<string, unknown>>;
+            assets?: Array<Record<string, unknown>>;
+            debug?: unknown;
+          }
+        | undefined;
+      const contacts = data?.contacts ?? [];
+      const assets = data?.assets ?? [];
+      return {
+        kind: 'find',
+        contactsCount: contacts.length,
+        assetsCount: assets.length,
+        contactPreviews: contacts
+          .slice(0, 3)
+          .map((c) => (typeof c.name === 'string' ? c.name : ''))
+          .filter(Boolean),
+        assetPreviews: assets
+          .slice(0, 3)
+          .map((a) => (typeof a.name === 'string' ? a.name : ''))
+          .filter(Boolean),
+        debug: data?.debug,
+      };
+    }
   }
   return null;
 }

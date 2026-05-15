@@ -237,10 +237,10 @@ async function main(): Promise<void> {
     for (const tc of turn3.toolCalls) console.log(`  • ${tc.name}`);
     console.log(`[turn 3] assistant: ${turn3.text.slice(0, 300)}\n`);
 
-    await step('Turn 3 fired a search tool (contacts or assets)', () => {
+    await step('Turn 3 fired the find or query_sql tool', () => {
       const fired = turn3.toolCalls.map((t) => t.name);
-      if (!fired.some((n) => n === 'search_contacts' || n === 'search_assets' || n === 'query_sql'))
-        throw new Error(`expected search_* or query_sql, got: ${fired.join(', ')}`);
+      if (!fired.some((n) => n === 'find' || n === 'query_sql'))
+        throw new Error(`expected find or query_sql, got: ${fired.join(', ')}`);
     });
 
     await step('Turn 3 mentions Anna or Adway in the final reply', () => {
