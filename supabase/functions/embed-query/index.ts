@@ -1,14 +1,8 @@
 // embed-query — proxies a single text → embedding through OpenRouter.
-//
-// Browser calls this from within the search_contacts / search_assets tool
-// so the OpenRouter API key never leaves the server.
-//
-// Auth: any authenticated Supabase user can call this. We don't rate-limit
-// here — Supabase Edge gateway already does basic rate limiting. Production
-// hardening (Phase 8) tightens this with per-user quotas.
 
 import { Hono } from 'jsr:@hono/hono@^4.7';
 import { cors } from 'jsr:@hono/hono@^4.7/cors';
+import { log, makeRequestId } from '../_shared/log.ts';
 
 const app = new Hono().basePath('/embed-query');
 
@@ -17,28 +11,45 @@ app.use(
   cors({
     origin: '*',
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['Authorization', 'Content-Type', 'apikey', 'x-client-info'],
+    allowHeaders: ['Authorization', 'Content-Type', 'apikey', 'x-client-info', 'x-request-id'],
+    exposeHeaders: ['x-request-id'],
     maxAge: 600,
   }),
 );
 
+app.get('/health', (c) => c.json({ ok: true }));
+
 app.post('/', async (c) => {
+  const reqId = makeRequestId(c.req.raw);
+  const ctx = { function: 'embed-query', request_id: reqId };
+  const t0 = performance.now();
+
   const auth = c.req.header('Authorization');
-  if (!auth) return c.text('Missing Authorization header', 401);
+  if (!auth) {
+    log('warn', ctx, 'auth.missing');
+    return c.text('Missing Authorization header', 401, { 'x-request-id': reqId });
+  }
 
   let body: { text: string };
   try {
     body = (await c.req.json()) as { text: string };
   } catch {
-    return c.text('Invalid JSON body', 400);
+    log('warn', ctx, 'body.invalid_json');
+    return c.text('Invalid JSON body', 400, { 'x-request-id': reqId });
   }
   if (!body.text || typeof body.text !== 'string') {
-    return c.text('Field `text` (non-empty string) is required', 400);
+    log('warn', ctx, 'body.missing_text');
+    return c.text('Field `text` (non-empty string) is required', 400, { 'x-request-id': reqId });
   }
+  log('info', ctx, 'request.received', { text_length: body.text.length });
 
   const openrouterKey = Deno.env.get('OPENROUTER_API_KEY');
-  if (!openrouterKey) return c.text('OPENROUTER_API_KEY missing', 500);
+  if (!openrouterKey) {
+    log('error', ctx, 'env.openrouter_key_missing');
+    return c.text('OPENROUTER_API_KEY missing', 500, { 'x-request-id': reqId });
+  }
 
+  const tUpstream = performance.now();
   const res = await fetch('https://openrouter.ai/api/v1/embeddings', {
     method: 'POST',
     headers: {
@@ -47,21 +58,26 @@ app.post('/', async (c) => {
       'HTTP-Referer': 'https://network-ai.app',
       'X-Title': 'network-ai',
     },
-    body: JSON.stringify({
-      model: 'openai/text-embedding-3-small',
-      input: [body.text],
-    }),
+    body: JSON.stringify({ model: 'openai/text-embedding-3-small', input: [body.text] }),
     signal: c.req.raw.signal,
   });
 
   if (!res.ok) {
-    return c.text(`OpenRouter ${res.status}: ${await res.text()}`, res.status as never);
+    const text = await res.text().catch(() => '');
+    log('error', ctx, 'upstream.error', { status: res.status, detail: text.slice(0, 500) });
+    return c.text(`OpenRouter ${res.status}: ${text}`, res.status as never, {
+      'x-request-id': reqId,
+    });
   }
 
   const data = (await res.json()) as { data: Array<{ embedding: number[] }> };
-  return c.json({ embedding: data.data[0].embedding });
-});
+  log('info', ctx, 'response.ok', {
+    total_ms: Math.round(performance.now() - t0),
+    upstream_ms: Math.round(performance.now() - tUpstream),
+    dim: data.data[0]?.embedding?.length,
+  });
 
-app.get('/health', (c) => c.json({ ok: true }));
+  return c.json({ embedding: data.data[0].embedding }, 200, { 'x-request-id': reqId });
+});
 
 Deno.serve(app.fetch);

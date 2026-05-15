@@ -9,6 +9,7 @@ export type ChatRequest = {
   messages: unknown[];
   tools?: unknown[];
   temperature?: number;
+  stream?: boolean;
   /** Any additional OpenRouter-compatible fields the client sends. */
   [key: string]: unknown;
 };
@@ -21,16 +22,16 @@ export type BuildOpts = {
 };
 
 /**
- * Build the upstream fetch request for OpenRouter. Forces `stream: true`
- * regardless of what the client asked for — the function exists to stream.
+ * Build the upstream fetch request for OpenRouter. We honor whatever
+ * `stream` value the client sent — `streamText` sends `true`, `generateText`
+ * sends `false`. Forcing one way breaks the other.
  *
- * Throws if the input is missing required fields. The client passes
- * structured data via @ai-sdk/openai-compatible; we validate the floor here.
+ * Throws if the input is missing required fields.
  */
 export function buildUpstreamRequest(
   input: ChatRequest,
   opts: BuildOpts,
-): { url: string; init: RequestInit } {
+): { url: string; init: RequestInit; streaming: boolean } {
   if (!input.model || typeof input.model !== 'string') {
     throw new Error('agent-chat: `model` is required');
   }
@@ -41,7 +42,7 @@ export function buildUpstreamRequest(
     throw new Error('agent-chat: missing OPENROUTER_API_KEY');
   }
 
-  const body = { ...input, stream: true };
+  const streaming = input.stream === true;
 
   return {
     url: OPENROUTER_URL,
@@ -50,19 +51,26 @@ export function buildUpstreamRequest(
       headers: {
         Authorization: `Bearer ${opts.openrouterKey}`,
         'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
+        Accept: streaming ? 'text/event-stream' : 'application/json',
         ...(opts.referer ? { 'HTTP-Referer': opts.referer } : {}),
         ...(opts.title ? { 'X-Title': opts.title } : {}),
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(input),
     },
+    streaming,
   };
 }
 
-/** Headers we set on the streaming response back to the client. */
+/** Headers for streaming responses back to the client. */
 export const STREAM_RESPONSE_HEADERS = {
   'Content-Type': 'text/event-stream',
   'Cache-Control': 'no-cache, no-transform',
   'X-Accel-Buffering': 'no',
   Connection: 'keep-alive',
+} as const;
+
+/** Headers for non-streaming (JSON) responses. */
+export const JSON_RESPONSE_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-cache, no-transform',
 } as const;

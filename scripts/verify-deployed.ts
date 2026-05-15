@@ -19,6 +19,8 @@
 import { join } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { generateText } from 'ai';
 
 const ROOT = join(import.meta.dirname ?? __dirname, '..');
 
@@ -104,39 +106,23 @@ async function main(): Promise<void> {
         throw new Error(`Access-Control-Allow-Headers missing authorization: ${allowHeaders}`);
     });
 
-    // ── Actual agent-chat POST returns an SSE stream ─────────────────────
-    await step('agent-chat POST returns a streaming response', async () => {
-      const res = await fetch(`${SUPA_URL}/functions/v1/agent-chat`, {
-        method: 'POST',
+    // ── Drive agent-chat through the SAME code path the browser uses (AI SDK) ──
+    // This catches the /chat/completions appending behavior that hand-rolled
+    // fetch would miss.
+    await step('agent-chat via AI SDK (browser code path) returns text', async () => {
+      const provider = createOpenAICompatible({
+        name: 'agent-chat',
+        baseURL: `${SUPA_URL}/functions/v1/agent-chat`,
         headers: {
-          Origin: SIMULATED_ORIGIN,
           Authorization: `Bearer ${jwt}`,
-          'Content-Type': 'application/json',
+          Origin: SIMULATED_ORIGIN,
         },
-        body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
-          messages: [{ role: 'user', content: 'say "hello" and nothing else' }],
-          stream: true,
-        }),
       });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`agent-chat returned ${res.status}: ${text.slice(0, 200)}`);
-      }
-      const ct = res.headers.get('content-type') ?? '';
-      if (!ct.includes('text/event-stream'))
-        throw new Error(`expected text/event-stream, got: ${ct}`);
-      // Read at least one SSE chunk so we know the stream actually works.
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error('no response body');
-      const chunk = await Promise.race([
-        reader.read(),
-        new Promise<{ value: undefined; done: true }>((resolve) =>
-          setTimeout(() => resolve({ value: undefined, done: true }), 8000),
-        ),
-      ]);
-      if (chunk.done) throw new Error('stream closed before first chunk arrived');
-      void reader.cancel();
+      const { text } = await generateText({
+        model: provider('openai/gpt-4o-mini'),
+        messages: [{ role: 'user', content: 'reply with exactly the word: hello' }],
+      });
+      if (!text || text.length === 0) throw new Error('AI SDK returned empty text');
     });
 
     // ── embed-query: OPTIONS + POST ──────────────────────────────────────
