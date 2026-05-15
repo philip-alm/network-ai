@@ -11,6 +11,7 @@
  */
 
 import { createClient, type SupabaseClient as RawSupabaseClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 import type { Database } from '@network-ai/types';
 import { env } from '../env';
 
@@ -54,7 +55,19 @@ export function getBrowserSupabase(): SupabaseClient {
     );
   }
   if (!browserSingleton) {
-    browserSingleton = createSupabaseClient();
+    // createBrowserClient persists the session in cookies (not localStorage),
+    // which the @supabase/ssr middleware reads on every request. This is what
+    // keeps client-side auth state in sync with server components — without
+    // it, signInWithPassword sets localStorage but the middleware sees no
+    // session cookie and bounces the user back to /sign-in.
+    //
+    // The `as unknown as SupabaseClient` cast bridges a tiny shape mismatch
+    // between @supabase/ssr's 4-generic and supabase-js's 3-generic
+    // SupabaseClient (functionally identical for our use).
+    browserSingleton = createBrowserClient(
+      env.supabaseUrl,
+      env.supabasePublishableKey,
+    ) as unknown as SupabaseClient;
   }
   return browserSingleton;
 }

@@ -160,6 +160,9 @@ importers:
       '@network-ai/ui':
         specifier: workspace:*
         version: link:../ui
+      '@supabase/ssr':
+        specifier: ^0.6.1
+        version: 0.6.1(@supabase/supabase-js@2.105.4)
       '@supabase/supabase-js':
         specifier: ^2.50.0
         version: 2.105.4
