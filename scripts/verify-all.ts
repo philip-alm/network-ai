@@ -15,12 +15,10 @@ const VERIFIERS = [
   'verify:db',
   'verify:auth',
   'verify:embeddings',
-  // 'verify:embeddings',    // Phase 3
-  // 'verify:agent-chat',    // Phase 4
-  // 'verify:agent-loop',    // Phase 5
-  // 'verify:ui',            // Phase 6
-  // 'verify:native-smoke',  // Phase 7
-  // 'verify:account-deletion', // Phase 8
+  'verify:agent-loop',
+  'verify:account-deletion',
+  // 'verify:ui',            // Phase 6 — Playwright pending (web manually verified via `pnpm dev:web`)
+  // 'verify:native-smoke',  // Phase 7 — Detox pending (native scaffolded but not deployed)
 ];
 
 function run(cmd: string): void {

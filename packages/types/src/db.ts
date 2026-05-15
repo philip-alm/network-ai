@@ -189,6 +189,7 @@ export type Database = {
         };
         Returns: unknown;
       };
+      delete_embedding_job: { Args: { p_msg_id: number }; Returns: boolean };
       embedding_queue_depth: { Args: never; Returns: number };
       embedding_queue_depth_for_user: {
         Args: { p_user_id: string };
@@ -261,6 +262,13 @@ export type Database = {
       };
       mutate_sql: { Args: { query: string }; Returns: Json };
       query_sql: { Args: { query: string }; Returns: Json };
+      read_embedding_jobs: {
+        Args: { p_qty?: number; p_vt?: number };
+        Returns: {
+          message: Json;
+          msg_id: number;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;
