@@ -8,9 +8,20 @@
 // `auth.users.id ON DELETE CASCADE`.
 
 import { Hono } from 'jsr:@hono/hono@^4.7';
+import { cors } from 'jsr:@hono/hono@^4.7/cors';
 import { createClient } from 'jsr:@supabase/supabase-js@^2.50';
 
-const app = new Hono();
+const app = new Hono().basePath('/delete-account');
+
+app.use(
+  '*',
+  cors({
+    origin: '*',
+    allowMethods: ['POST', 'OPTIONS'],
+    allowHeaders: ['Authorization', 'Content-Type', 'apikey', 'x-client-info'],
+    maxAge: 600,
+  }),
+);
 
 app.post('/', async (c) => {
   const auth = c.req.header('Authorization');

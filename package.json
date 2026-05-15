@@ -29,6 +29,7 @@
     "verify:ui": "turbo run e2e --filter=@network-ai/web",
     "verify:native-smoke": "tsx scripts/verify-native-smoke.ts",
     "verify:account-deletion": "tsx scripts/verify-account-deletion.ts",
+    "verify:deployed": "tsx scripts/verify-deployed.ts",
     "verify:all": "tsx scripts/verify-all.ts",
     "clean": "turbo run clean && rm -rf node_modules",
     "prepare": "husky"

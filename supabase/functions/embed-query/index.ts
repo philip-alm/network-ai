@@ -8,8 +8,19 @@
 // hardening (Phase 8) tightens this with per-user quotas.
 
 import { Hono } from 'jsr:@hono/hono@^4.7';
+import { cors } from 'jsr:@hono/hono@^4.7/cors';
 
-const app = new Hono();
+const app = new Hono().basePath('/embed-query');
+
+app.use(
+  '*',
+  cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['Authorization', 'Content-Type', 'apikey', 'x-client-info'],
+    maxAge: 600,
+  }),
+);
 
 app.post('/', async (c) => {
   const auth = c.req.header('Authorization');

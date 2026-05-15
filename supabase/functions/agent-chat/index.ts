@@ -4,9 +4,24 @@
 //   - OPENROUTER_API_KEY
 
 import { Hono } from 'jsr:@hono/hono@^4.7';
+import { cors } from 'jsr:@hono/hono@^4.7/cors';
 import { buildUpstreamRequest, STREAM_RESPONSE_HEADERS, type ChatRequest } from './core.ts';
 
-const app = new Hono();
+// basePath: the function is invoked at /functions/v1/agent-chat — Hono sees
+// the path verbatim. Mounting at /agent-chat keeps the route handlers clean.
+const app = new Hono().basePath('/agent-chat');
+
+// CORS: browser clients from any origin can POST here — we still authenticate
+// via the user JWT. OPTIONS preflight is handled automatically.
+app.use(
+  '*',
+  cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    allowHeaders: ['Authorization', 'Content-Type', 'apikey', 'x-client-info'],
+    maxAge: 600,
+  }),
+);
 
 app.get('/health', (c) => c.json({ ok: true }));
 
