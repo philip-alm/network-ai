@@ -1,0 +1,56 @@
+{
+  "name": "network-ai",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Personal network mapper with AI agent for contacts, warmth, and assets",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@10.33.4",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "dev:web": "turbo run dev --filter=@network-ai/web",
+    "dev:native": "turbo run dev --filter=@network-ai/native",
+    "check": "turbo run check",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:fast": "turbo run test:fast",
+    "e2e:web": "turbo run e2e --filter=@network-ai/web",
+    "db:test": "turbo run db:test --filter=@network-ai/supabase",
+    "verify:scaffold": "tsx scripts/verify-scaffold.ts",
+    "verify:db": "tsx scripts/verify-db.ts",
+    "verify:auth": "tsx scripts/verify-auth-web.ts",
+    "verify:embeddings": "tsx scripts/verify-embeddings.ts",
+    "verify:agent-chat": "tsx scripts/verify-agent-chat.ts",
+    "verify:agent-loop": "tsx scripts/verify-agent-loop.ts",
+    "verify:ui": "turbo run e2e --filter=@network-ai/web",
+    "verify:native-smoke": "tsx scripts/verify-native-smoke.ts",
+    "verify:account-deletion": "tsx scripts/verify-account-deletion.ts",
+    "verify:all": "tsx scripts/verify-all.ts",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "eslint": "^9.18.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md,yml,yaml}": "prettier --write"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

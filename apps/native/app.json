@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "network-ai",
+    "slug": "network-ai",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "scheme": "network-ai",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.networkai.app",
+      "associatedDomains": ["applinks:network-ai.app"]
+    },
+    "android": {
+      "package": "com.networkai.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "network-ai.app" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

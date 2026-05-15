@@ -1,0 +1,38 @@
+{
+  "name": "@network-ai/app",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./features/*": "./src/features/*/index.ts",
+    "./lib/*": "./src/lib/*/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:fast": "vitest run --reporter=dot",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@network-ai/types": "workspace:*",
+    "@network-ai/ui": "workspace:*",
+    "@supabase/supabase-js": "^2.50.0",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@network-ai/test-utils": "workspace:*",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^18.3.18",
+    "@types/react-native": "^0.73.0",
+    "jsdom": "^25.0.1",
+    "react-dom": "18.3.1",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}
