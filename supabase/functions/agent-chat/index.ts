@@ -1,0 +1,56 @@
+// Deno entrypoint. Run locally via `supabase functions serve agent-chat`.
+//
+// Required env (Edge Function secrets for remote, or `supabase/.env` locally):
+//   - OPENROUTER_API_KEY
+
+import { Hono } from 'jsr:@hono/hono@^4.7';
+import { buildUpstreamRequest, STREAM_RESPONSE_HEADERS, type ChatRequest } from './core.ts';
+
+const app = new Hono();
+
+app.get('/health', (c) => c.json({ ok: true }));
+
+app.post('/', async (c) => {
+  const auth = c.req.header('Authorization');
+  if (!auth) {
+    return c.text('Missing Authorization header', 401);
+  }
+
+  let body: ChatRequest;
+  try {
+    body = (await c.req.json()) as ChatRequest;
+  } catch {
+    return c.text('Invalid JSON body', 400);
+  }
+
+  const openrouterKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openrouterKey) {
+    return c.text('OPENROUTER_API_KEY missing in Edge Function secrets', 500);
+  }
+
+  let upstream: Response;
+  try {
+    const { url, init } = buildUpstreamRequest(body, {
+      openrouterKey,
+      referer: 'https://network-ai.app',
+      title: 'network-ai',
+    });
+    upstream = await fetch(url, { ...init, signal: c.req.raw.signal });
+  } catch (err) {
+    return c.text(
+      `agent-chat: upstream request build failed — ${err instanceof Error ? err.message : String(err)}`,
+      400,
+    );
+  }
+
+  if (!upstream.ok || !upstream.body) {
+    const detail = await upstream.text().catch(() => '');
+    return c.text(`OpenRouter ${upstream.status}: ${detail}`, upstream.status as never);
+  }
+
+  // Raw pass-through — preserves cancellation semantics and avoids the
+  // Deno transform-stream cancel crash (deno#27715).
+  return new Response(upstream.body, { headers: STREAM_RESPONSE_HEADERS });
+});
+
+Deno.serve(app.fetch);
