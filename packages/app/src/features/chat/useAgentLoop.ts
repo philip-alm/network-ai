@@ -73,16 +73,13 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
         streaming: true,
       };
 
-      // History snapshot BEFORE we push the new messages — never includes
-      // the streaming placeholder itself.
-      let historyBeforeThisTurn: AgentMessage[] = [];
-      setMessages((prev) => {
-        historyBeforeThisTurn = prev
-          .filter((m) => m.role === 'user' || m.role === 'assistant')
-          .map((m) => ({ role: m.role, content: m.text }));
-        return [...prev, userMsg, placeholder];
-      });
+      // Read history SYNCHRONOUSLY from the closure — React 18 queues
+      // setState updates, so reading inside the setMessages updater
+      // would be too late: runBrowserAgentTurn fires before the updater
+      // runs and the LLM gets empty history every turn (bug 2026-05-15).
+      const historyBeforeThisTurn = buildHistoryForLlm(messages);
 
+      setMessages((prev) => [...prev, userMsg, placeholder]);
       setIsPending(true);
 
       const updateAssistant = (mut: (m: ChatMessage) => ChatMessage): void => {
@@ -140,7 +137,7 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
         abortRef.current = null;
       }
     },
-    [userId, threadId, storeActions],
+    [messages, userId, threadId, storeActions],
   );
 
   const stop = useCallback(() => {
@@ -156,6 +153,38 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
     phase,
     retryHint,
   };
+}
+
+/**
+ * Build the [role, content] history sent to the LLM next turn.
+ *
+ * Rules:
+ *  - Drop any streaming placeholder (text === '', streaming===true).
+ *  - For finalized assistant turns, prefer the joined text-segments over
+ *    `message.text` — `streamText`'s `result.text` only contains the
+ *    LAST step's text in a multi-step turn, so the joined segments are
+ *    the complete record of what the assistant said across all steps.
+ *  - Drop assistant turns with no text after the join (pure tool-call
+ *    turns with no narration — uncommon but possible).
+ */
+export function buildHistoryForLlm(messages: ChatMessage[]): AgentMessage[] {
+  const out: AgentMessage[] = [];
+  for (const m of messages) {
+    if (m.streaming) continue;
+    if (m.role !== 'user' && m.role !== 'assistant') continue;
+    let content = m.text ?? '';
+    if (m.role === 'assistant' && m.segments && m.segments.length > 0) {
+      const joined = m.segments
+        .filter((s): s is { kind: 'text'; text: string } => s.kind === 'text')
+        .map((s) => s.text)
+        .join('\n\n')
+        .trim();
+      if (joined.length > content.length) content = joined;
+    }
+    if (!content) continue;
+    out.push({ role: m.role, content });
+  }
+  return out;
 }
 
 function applyOptimistic(
