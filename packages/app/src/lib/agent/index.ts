@@ -8,7 +8,10 @@ export type {
   RunAgentOptions,
   AgentToolInvocation,
   AgentTurnResult,
+  StreamingCallbacks,
 } from './runAgent';
+
+export { parseToolResult, type ToolCardKind } from './toolResultParser';
 
 export { makeTools, type EmbedQueryFn, type AgentTools } from './tools';
 

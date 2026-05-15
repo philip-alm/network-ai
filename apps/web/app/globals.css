@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* — Type stacks — */
+    --font-sans:
+      var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', sans-serif;
+    --font-mono:
+      var(--font-geist-mono), ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+    /* — Color tokens (light only) — */
+    /* Backgrounds + surfaces — warm off-white, never pure white. */
+    --color-bg: oklch(99% 0 0);
+    --color-surface: oklch(98% 0 0);
+    --color-surface-soft: oklch(96.5% 0.003 60);
+
+    /* Foreground + muted variants. */
+    --color-fg: oklch(15% 0 0);
+    --color-muted: oklch(48% 0 0);
+    --color-faint: oklch(68% 0 0);
+
+    /* Borders — hairline, two strengths. */
+    --color-border: oklch(91% 0 0);
+    --color-border-soft: oklch(95% 0 0);
+
+    /* Accent — deep emerald. Used sparingly: warmth-1, AI-action confirmation,
+       focus rings, the in-flight cursor. */
+    --color-accent: oklch(50% 0.13 155);
+    --color-accent-soft: oklch(94% 0.04 155);
+
+    /* Status colors. */
+    --color-danger: oklch(52% 0.18 25);
+    --color-warning: oklch(70% 0.13 70);
+
+    /* Warmth dot ramp — green → amber → neutral. */
+    --color-warmth-1: oklch(55% 0.13 155);
+    --color-warmth-2: oklch(70% 0.13 145);
+    --color-warmth-3: oklch(78% 0.14 85);
+    --color-warmth-4: oklch(82% 0.10 60);
+    --color-warmth-5: oklch(72% 0 0);
+  }
+
+  html,
+  body {
+    height: 100%;
+    overflow: hidden; /* page never grows — panes own their own scroll */
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv02';
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.011em;
+  }
+
+  /* Selection — uses accent-soft so it never feels jarring. */
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-fg);
+  }
+
+  /* Focus rings — accent, with a 2px offset against the bg. */
+  *:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Honor reduced motion — disable nontrivial animations. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Generic hairline divider. */
+  .hairline {
+    border-color: var(--color-border-soft);
+  }
+
+  /* Card surface — almost-flat, hairline-ringed. */
+  .card {
+    background: var(--color-surface);
+    box-shadow: inset 0 0 0 1px var(--color-border-soft);
+    border-radius: var(--radius-lg, 10px);
+  }
+
+  /* Inline-monospaced strings (IDs, timings). */
+  .mono {
+    font-family: var(--font-mono);
+    font-feature-settings: 'ss01';
+    letter-spacing: -0.01em;
+  }
+
+  /* Streaming cursor — quietly blinks at the end of the in-flight bubble. */
+  .cursor {
+    display: inline-block;
+    width: 0.5ch;
+    height: 1em;
+    margin-left: 1px;
+    vertical-align: -0.15em;
+    background: var(--color-accent);
+    animation: blink 1.05s steps(2) infinite;
+  }
+}

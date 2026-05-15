@@ -4,11 +4,8 @@ import { useState, type ReactNode } from 'react';
 import { getBrowserSupabase } from '../../lib/supabase';
 
 export type SignInScreenProps = {
-  /** Called after a successful sign-in. Typical: router.push('/'). */
   onSignedIn: () => void;
-  /** Optional error banner copy (e.g. surfaced from the auth callback route). */
   redirectError?: string;
-  /** Render hooks for additional providers — defaults to nothing. */
   extraProviders?: ReactNode;
 };
 
@@ -23,8 +20,10 @@ export function SignInScreen({ onSignedIn, redirectError, extraProviders }: Sign
     setSubmitting(true);
     setError(null);
     try {
-      const supabase = getBrowserSupabase();
-      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: signInErr } = await getBrowserSupabase().auth.signInWithPassword({
+        email,
+        password,
+      });
       if (signInErr) {
         setError(signInErr.message);
         return;
@@ -36,51 +35,64 @@ export function SignInScreen({ onSignedIn, redirectError, extraProviders }: Sign
   };
 
   return (
-    <main style={styles.shell} data-testid="sign-in-screen">
-      <h1 style={styles.title}>Sign in</h1>
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <label style={styles.label}>
-          Email
-          <input
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={styles.input}
-            data-testid="sign-in-email"
-          />
-        </label>
-        <label style={styles.label}>
-          Password
-          <input
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
-            data-testid="sign-in-password"
-          />
-        </label>
+    <main
+      data-testid="sign-in-screen"
+      className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center px-6 py-12"
+    >
+      <header className="mb-8 space-y-1">
+        <p className="text-xs uppercase tracking-wider text-faint">network-ai</p>
+        <h1 className="text-2xl font-semibold tracking-tighter text-fg">Welcome back</h1>
+      </header>
+
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <Field
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={setEmail}
+          testId="sign-in-email"
+        />
+        <Field
+          label="Password"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={setPassword}
+          testId="sign-in-password"
+        />
         {error ? (
-          <p style={styles.error} data-testid="sign-in-error" role="alert">
+          <p
+            className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
+            data-testid="sign-in-error"
+            role="alert"
+          >
             {error}
           </p>
         ) : null}
         <button
           type="submit"
           disabled={submitting}
-          style={styles.submit}
           data-testid="sign-in-submit"
+          className="inline-flex w-full items-center justify-center rounded-md bg-fg px-3 py-2 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
-      {extraProviders ? <div style={styles.providers}>{extraProviders}</div> : null}
-      <p style={styles.foot}>
+
+      {extraProviders ? (
+        <div className="mt-6 border-t border-border-soft pt-6">{extraProviders}</div>
+      ) : null}
+
+      <p className="mt-8 text-sm text-muted">
         Don't have an account?{' '}
-        <a href="/sign-up" data-testid="sign-in-to-sign-up">
+        <a
+          href="/sign-up"
+          data-testid="sign-in-to-sign-up"
+          className="text-fg underline-offset-4 hover:underline"
+        >
           Sign up
         </a>
       </p>
@@ -88,27 +100,35 @@ export function SignInScreen({ onSignedIn, redirectError, extraProviders }: Sign
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  shell: {
-    maxWidth: 420,
-    margin: '4rem auto',
-    padding: '2rem',
-    fontFamily: 'system-ui, sans-serif',
-  },
-  title: { fontSize: '1.5rem', marginBottom: '1.5rem' },
-  form: { display: 'flex', flexDirection: 'column', gap: '1rem' },
-  label: { display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' },
-  input: { padding: '0.5rem 0.75rem', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 6 },
-  submit: {
-    padding: '0.625rem 0.75rem',
-    fontSize: '1rem',
-    background: '#111',
-    color: 'white',
-    border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
-  },
-  error: { color: '#b00', fontSize: '0.875rem', margin: 0 },
-  providers: { marginTop: '1.5rem', borderTop: '1px solid #eee', paddingTop: '1rem' },
-  foot: { marginTop: '2rem', fontSize: '0.875rem', color: '#666' },
-};
+function Field({
+  label,
+  type,
+  autoComplete,
+  required,
+  value,
+  onChange,
+  testId,
+}: {
+  label: string;
+  type: string;
+  autoComplete?: string;
+  required?: boolean;
+  value: string;
+  onChange: (s: string) => void;
+  testId?: string;
+}) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="block text-xs uppercase tracking-wider text-faint">{label}</span>
+      <input
+        type={type}
+        autoComplete={autoComplete}
+        required={required}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        data-testid={testId}
+        className="w-full rounded-md bg-surface-soft px-3 py-2 text-sm text-fg shadow-hairline-soft placeholder:text-faint focus:outline-none focus:shadow-focus"
+      />
+    </label>
+  );
+}

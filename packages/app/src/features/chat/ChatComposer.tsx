@@ -1,18 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowUp, Square } from 'lucide-react';
 
 export type ChatComposerProps = {
   onSubmit: (text: string) => void | Promise<void>;
-  /** When true, composer is locked + Send becomes Stop. */
   isPending?: boolean;
-  /** Called when the user clicks Stop (only relevant while isPending). */
   onStop?: () => void;
   placeholder?: string;
 };
 
 export function ChatComposer({ onSubmit, isPending, onStop, placeholder }: ChatComposerProps) {
   const [value, setValue] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const next = Math.min(el.scrollHeight, 180);
+    el.style.height = `${next}px`;
+  }, [value]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const target = e.target as HTMLElement | null;
+      const inField = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+      if (e.key === '/' && !inField) {
+        e.preventDefault();
+        textareaRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -26,67 +47,55 @@ export function ChatComposer({ onSubmit, isPending, onStop, placeholder }: ChatC
     <form
       onSubmit={handleSubmit}
       data-testid="chat-composer"
-      style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #eee' }}
+      className="border-t border-border-soft bg-bg p-3"
     >
-      <textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={placeholder ?? 'What would you like to do?'}
-        disabled={isPending}
-        rows={2}
-        data-testid="chat-input"
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            handleSubmit(e as unknown as React.FormEvent);
-          } else if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit(e as unknown as React.FormEvent);
-          }
-        }}
-        style={{
-          flex: 1,
-          resize: 'none',
-          padding: '8px 12px',
-          fontSize: 14,
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          fontFamily: 'inherit',
-        }}
-      />
-      {isPending && onStop ? (
-        <button
-          type="button"
-          onClick={onStop}
-          data-testid="chat-stop"
-          style={{
-            padding: '0 16px',
-            background: '#b00',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            cursor: 'pointer',
+      <div className="group relative flex items-end gap-2 rounded-lg bg-surface-soft p-2 shadow-hairline-soft transition-shadow focus-within:shadow-focus">
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={placeholder ?? 'Tell me about someone, or ask anything…'}
+          disabled={isPending}
+          rows={1}
+          data-testid="chat-input"
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              e.preventDefault();
+              handleSubmit(e as unknown as React.FormEvent);
+            } else if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit(e as unknown as React.FormEvent);
+            }
           }}
-        >
-          Stop
-        </button>
-      ) : (
-        <button
-          type="submit"
-          disabled={isPending || value.trim().length === 0}
-          data-testid="chat-send"
-          style={{
-            padding: '0 16px',
-            background: '#111',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            cursor: 'pointer',
-          }}
-        >
-          {isPending ? '…' : 'Send'}
-        </button>
-      )}
+          className="flex-1 resize-none bg-transparent px-2 py-1.5 text-base leading-snug text-fg outline-none placeholder:text-faint disabled:opacity-60"
+          style={{ maxHeight: 180 }}
+        />
+        {isPending && onStop ? (
+          <button
+            type="button"
+            onClick={onStop}
+            data-testid="chat-stop"
+            aria-label="Stop"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-fg text-bg transition-opacity hover:opacity-90"
+          >
+            <Square size={12} fill="currentColor" aria-hidden />
+          </button>
+        ) : (
+          <button
+            type="submit"
+            disabled={isPending || value.trim().length === 0}
+            data-testid="chat-send"
+            aria-label="Send"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-fg text-bg transition-opacity hover:opacity-90 disabled:opacity-30"
+          >
+            <ArrowUp size={14} aria-hidden />
+          </button>
+        )}
+      </div>
+      <p className="mt-1.5 px-2 text-[11px] text-faint">
+        <kbd className="rounded-sm bg-surface-soft px-1 py-0.5 font-mono">/</kbd> to focus ·{' '}
+        <kbd className="rounded-sm bg-surface-soft px-1 py-0.5 font-mono">⌘ ↵</kbd> to send
+      </p>
     </form>
   );
 }

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { getBrowserSupabase } from '../../lib/supabase';
 
 export type SignUpScreenProps = {
-  /** Called after a successful sign-up. Typical: router.push('/'). */
   onSignedUp: () => void;
 };
 
@@ -30,8 +29,10 @@ export function SignUpScreen({ onSignedUp }: SignUpScreenProps) {
     }
     setSubmitting(true);
     try {
-      const supabase = getBrowserSupabase();
-      const { data, error: signUpErr } = await supabase.auth.signUp({ email, password });
+      const { data, error: signUpErr } = await getBrowserSupabase().auth.signUp({
+        email,
+        password,
+      });
       if (signUpErr) {
         setError(signUpErr.message);
         return;
@@ -39,7 +40,6 @@ export function SignUpScreen({ onSignedUp }: SignUpScreenProps) {
       if (data.session) {
         onSignedUp();
       } else {
-        // Email confirmation required.
         setInfo(`Check ${email} for a confirmation link.`);
       }
     } finally {
@@ -48,69 +48,80 @@ export function SignUpScreen({ onSignedUp }: SignUpScreenProps) {
   };
 
   return (
-    <main style={styles.shell} data-testid="sign-up-screen">
-      <h1 style={styles.title}>Create your account</h1>
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <label style={styles.label}>
-          Email
-          <input
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={styles.input}
-            data-testid="sign-up-email"
-          />
-        </label>
-        <label style={styles.label}>
-          Password (min 8 chars)
-          <input
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
-            data-testid="sign-up-password"
-          />
-        </label>
-        <label style={styles.label}>
-          Confirm password
-          <input
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={8}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            style={styles.input}
-            data-testid="sign-up-confirm"
-          />
-        </label>
+    <main
+      data-testid="sign-up-screen"
+      className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center px-6 py-12"
+    >
+      <header className="mb-8 space-y-1">
+        <p className="text-xs uppercase tracking-wider text-faint">network-ai</p>
+        <h1 className="text-2xl font-semibold tracking-tighter text-fg">Create your account</h1>
+      </header>
+
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <Field
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={setEmail}
+          testId="sign-up-email"
+        />
+        <Field
+          label="Password"
+          type="password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          value={password}
+          onChange={setPassword}
+          testId="sign-up-password"
+        />
+        <Field
+          label="Confirm password"
+          type="password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          testId="sign-up-confirm"
+        />
         {error ? (
-          <p style={styles.error} data-testid="sign-up-error" role="alert">
+          <p
+            className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
+            data-testid="sign-up-error"
+            role="alert"
+          >
             {error}
           </p>
         ) : null}
         {info ? (
-          <p style={styles.info} data-testid="sign-up-info" role="status">
+          <p
+            className="rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-sm text-fg"
+            data-testid="sign-up-info"
+            role="status"
+          >
             {info}
           </p>
         ) : null}
         <button
           type="submit"
           disabled={submitting}
-          style={styles.submit}
           data-testid="sign-up-submit"
+          className="inline-flex w-full items-center justify-center rounded-md bg-fg px-3 py-2 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {submitting ? 'Creating…' : 'Create account'}
         </button>
       </form>
-      <p style={styles.foot}>
+
+      <p className="mt-8 text-sm text-muted">
         Already have an account?{' '}
-        <a href="/sign-in" data-testid="sign-up-to-sign-in">
+        <a
+          href="/sign-in"
+          data-testid="sign-up-to-sign-in"
+          className="text-fg underline-offset-4 hover:underline"
+        >
           Sign in
         </a>
       </p>
@@ -118,27 +129,38 @@ export function SignUpScreen({ onSignedUp }: SignUpScreenProps) {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  shell: {
-    maxWidth: 420,
-    margin: '4rem auto',
-    padding: '2rem',
-    fontFamily: 'system-ui, sans-serif',
-  },
-  title: { fontSize: '1.5rem', marginBottom: '1.5rem' },
-  form: { display: 'flex', flexDirection: 'column', gap: '1rem' },
-  label: { display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.875rem' },
-  input: { padding: '0.5rem 0.75rem', fontSize: '1rem', border: '1px solid #ccc', borderRadius: 6 },
-  submit: {
-    padding: '0.625rem 0.75rem',
-    fontSize: '1rem',
-    background: '#111',
-    color: 'white',
-    border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
-  },
-  error: { color: '#b00', fontSize: '0.875rem', margin: 0 },
-  info: { color: '#080', fontSize: '0.875rem', margin: 0 },
-  foot: { marginTop: '2rem', fontSize: '0.875rem', color: '#666' },
-};
+function Field({
+  label,
+  type,
+  autoComplete,
+  required,
+  minLength,
+  value,
+  onChange,
+  testId,
+}: {
+  label: string;
+  type: string;
+  autoComplete?: string;
+  required?: boolean;
+  minLength?: number;
+  value: string;
+  onChange: (s: string) => void;
+  testId?: string;
+}) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="block text-xs uppercase tracking-wider text-faint">{label}</span>
+      <input
+        type={type}
+        autoComplete={autoComplete}
+        required={required}
+        minLength={minLength}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        data-testid={testId}
+        className="w-full rounded-md bg-surface-soft px-3 py-2 text-sm text-fg shadow-hairline-soft placeholder:text-faint focus:outline-none focus:shadow-focus"
+      />
+    </label>
+  );
+}

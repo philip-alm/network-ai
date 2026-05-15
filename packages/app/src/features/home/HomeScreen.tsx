@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { LogOut, Settings } from 'lucide-react';
 import { useAgentLoop, ChatThread } from '../chat';
 import { useContacts, ContactsAccordion } from '../contacts';
 
@@ -14,73 +15,50 @@ export function HomeScreen({ userId, userEmail, onSignOut }: HomeScreenProps) {
   const threadId = useMemo(() => crypto.randomUUID(), []);
   const { messages, send, stop, isPending, error, streamingText, streamingToolCalls, retryHint } =
     useAgentLoop({ userId, threadId });
-  const { contacts, assets, refetch } = useContacts();
+  const { contacts, assets } = useContacts();
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateRows: '48px 1fr',
-        gridTemplateColumns: '1fr 1fr',
-        height: '100vh',
-        fontFamily: 'system-ui, sans-serif',
-      }}
-    >
-      <header
-        style={{
-          gridColumn: '1 / -1',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 16px',
-          borderBottom: '1px solid #eee',
-          fontSize: 14,
-        }}
-      >
-        <strong>network-ai</strong>
-        <span style={{ marginLeft: 'auto', color: '#666', fontSize: 13 }}>{userEmail}</span>
-        <a
-          href="/settings"
-          data-testid="settings-link"
-          style={{
-            marginLeft: 16,
-            padding: '4px 10px',
-            color: '#333',
-            border: '1px solid #ddd',
-            borderRadius: 6,
-            fontSize: 13,
-            textDecoration: 'none',
-          }}
-        >
-          Settings
-        </a>
-        <button
-          type="button"
-          onClick={onSignOut}
-          data-testid="sign-out"
-          style={{
-            marginLeft: 8,
-            padding: '4px 10px',
-            background: 'transparent',
-            border: '1px solid #ddd',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 13,
-          }}
-        >
-          Sign out
-        </button>
+    <div className="grid h-screen w-screen grid-rows-[52px_1fr] overflow-hidden">
+      <header className="z-20 flex items-center gap-3 border-b border-border-soft bg-bg/95 px-5 backdrop-blur">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold tracking-tight text-fg">network-ai</span>
+          <span className="text-xs text-faint font-mono">v0</span>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="hidden text-xs text-muted sm:inline">{userEmail}</span>
+          <a
+            href="/settings"
+            data-testid="settings-link"
+            aria-label="Settings"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-soft hover:text-fg"
+          >
+            <Settings size={14} aria-hidden />
+          </a>
+          <button
+            type="button"
+            onClick={onSignOut}
+            data-testid="sign-out"
+            aria-label="Sign out"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-soft hover:text-fg"
+          >
+            <LogOut size={14} aria-hidden />
+          </button>
+        </div>
       </header>
-      <ChatThread
-        messages={messages}
-        isPending={isPending}
-        error={error}
-        onSubmit={send}
-        onStop={stop}
-        streamingText={streamingText}
-        streamingToolCalls={streamingToolCalls}
-        retryHint={retryHint}
-      />
-      <ContactsAccordion contacts={contacts} assets={assets} onChange={refetch} />
+
+      <main className="grid min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)]">
+        <ChatThread
+          messages={messages}
+          isPending={isPending}
+          error={error}
+          onSubmit={send}
+          onStop={stop}
+          streamingText={streamingText}
+          streamingToolCalls={streamingToolCalls}
+          retryHint={retryHint}
+        />
+        <ContactsAccordion contacts={contacts} assets={assets} />
+      </main>
     </div>
   );
 }

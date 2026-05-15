@@ -1,29 +1,40 @@
 'use client';
 
-/** Renders a colored dot for the warmth scale: 1=green, 2=lightgreen, 3=yellow, 4=orange, 5=grey. */
-export function WarmthDot({ warmth }: { warmth: number | null }) {
-  const map: Record<number, string> = {
-    1: '#0a8f3a',
-    2: '#5ab041',
-    3: '#d8b836',
-    4: '#d97843',
-    5: '#999',
-  };
-  const color = warmth ? (map[warmth] ?? '#ccc') : '#ccc';
-  const label = warmth ? `warmth ${warmth}` : 'unknown warmth';
+const WARMTH_LABELS: Record<number, string> = {
+  1: 'closest — would do anything',
+  2: 'WhatsApp, no problem',
+  3: 'solid professional contact',
+  4: 'would respond if I asked',
+  5: 'might respond',
+};
+
+const WARMTH_CLASSES: Record<number, string> = {
+  1: 'bg-warmth-1',
+  2: 'bg-warmth-2',
+  3: 'bg-warmth-3',
+  4: 'bg-warmth-4',
+  5: 'bg-warmth-5',
+};
+
+export function WarmthDot({ warmth, size = 9 }: { warmth: number | null; size?: number }) {
+  if (warmth == null) {
+    return (
+      <span
+        aria-label="warmth unknown"
+        data-testid="warmth-none"
+        className="inline-block rounded-full bg-faint/40"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  const tone = WARMTH_CLASSES[warmth] ?? 'bg-faint';
   return (
     <span
-      title={label}
-      aria-label={label}
-      data-testid={`warmth-${warmth ?? 'none'}`}
-      style={{
-        display: 'inline-block',
-        width: 10,
-        height: 10,
-        borderRadius: '50%',
-        background: color,
-        marginRight: 8,
-      }}
+      aria-label={`warmth ${warmth} — ${WARMTH_LABELS[warmth] ?? ''}`}
+      title={`warmth ${warmth} — ${WARMTH_LABELS[warmth] ?? ''}`}
+      data-testid={`warmth-${warmth}`}
+      className={`inline-block rounded-full ${tone}`}
+      style={{ width: size, height: size }}
     />
   );
 }

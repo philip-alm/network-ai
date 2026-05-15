@@ -16,10 +16,13 @@
   },
   "dependencies": {
     "@network-ai/app": "workspace:*",
-    "@network-ai/ui": "workspace:*",
     "@network-ai/types": "workspace:*",
+    "@network-ai/ui": "workspace:*",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
+    "geist": "^1.7.0",
+    "lucide-react": "^0.469.0",
+    "motion": "^11.18.2",
     "next": "^15.1.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -27,11 +30,15 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "@tailwindcss/typography": "^0.5.19",
     "@types/node": "^22.10.5",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.5.0",
     "eslint": "^9.18.0",
     "eslint-config-next": "^15.1.4",
+    "postcss": "^8.5.14",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
   }

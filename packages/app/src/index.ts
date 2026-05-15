@@ -14,6 +14,7 @@ export * from './features/auth';
 export * from './lib/supabase';
 export * from './lib/env';
 export * from './lib/agent';
+export * from './lib/store';
 
 // Phase 6 features
 export * from './features/chat';
