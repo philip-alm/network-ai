@@ -14,6 +14,7 @@ const VERIFIERS = [
   'verify:scaffold',
   'verify:db',
   'verify:auth',
+  'verify:embeddings',
   // 'verify:embeddings',    // Phase 3
   // 'verify:agent-chat',    // Phase 4
   // 'verify:agent-loop',    // Phase 5
