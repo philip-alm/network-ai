@@ -7,12 +7,16 @@
 
 export const helloFromAppPackage = (): string => 'Hello from packages/app';
 
+// Auth (Phase 2)
+export * from './features/auth';
+
+// Lib (Phase 2)
+export * from './lib/supabase';
+export * from './lib/env';
+
 // Feature exports will land here as they are built in subsequent phases:
 // export * from './features/chat';
 // export * from './features/contacts';
 // export * from './features/assets';
-// export * from './features/auth';
 // export * from './features/home';
-// export * from './lib/supabase';
 // export * from './lib/agent';
-// export * from './lib/env';

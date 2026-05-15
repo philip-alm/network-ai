@@ -13,7 +13,7 @@ import { execSync } from 'node:child_process';
 const VERIFIERS = [
   'verify:scaffold',
   'verify:db',
-  // 'verify:auth',          // Phase 2
+  'verify:auth',
   // 'verify:embeddings',    // Phase 3
   // 'verify:agent-chat',    // Phase 4
   // 'verify:agent-loop',    // Phase 5
