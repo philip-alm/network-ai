@@ -1,0 +1,47 @@
+/**
+ * browserAgent — wires the agent loop for the browser:
+ *   - Provider points at our agent-chat Edge Function (key stays server-side)
+ *   - embedQuery points at our embed-query Edge Function
+ *   - Supabase comes from getBrowserSupabase()
+ *
+ * Use this from React components via the useAgentLoop hook.
+ */
+
+'use client';
+
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { getBrowserSupabase } from '../supabase';
+import { env } from '../env';
+import { runAgentTurn, type AgentTurnResult, type AgentMessage } from './runAgent';
+import { MODEL_ID } from './systemPrompt';
+import { browserEmbedQuery } from './browserEmbedQuery';
+
+export type BrowserAgentInput = {
+  threadId: string;
+  userId: string;
+  userMessage: string;
+  history?: AgentMessage[];
+};
+
+/** Drive one agent turn in the browser. */
+export async function runBrowserAgentTurn(input: BrowserAgentInput): Promise<AgentTurnResult> {
+  const supabase = getBrowserSupabase();
+  const session = (await supabase.auth.getSession()).data.session;
+  if (!session) throw new Error('runBrowserAgentTurn: not signed in');
+
+  const provider = createOpenAICompatible({
+    name: 'agent-chat',
+    baseURL: `${env.supabaseUrl}/functions/v1/agent-chat`,
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+
+  return runAgentTurn({
+    model: provider(MODEL_ID),
+    supabase,
+    embedQuery: browserEmbedQuery,
+    threadId: input.threadId,
+    userId: input.userId,
+    userMessage: input.userMessage,
+    history: input.history,
+  });
+}

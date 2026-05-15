@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { helloFromAppPackage } from '@network-ai/app';
+import { HomeClient } from './HomeClient';
 
 export default async function HomePage() {
   const cookieStore = await cookies();
@@ -20,14 +20,5 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in');
 
-  return (
-    <main style={{ padding: '2rem', fontFamily: 'system-ui, sans-serif' }}>
-      <h1>network-ai</h1>
-      <p>Signed in as {user.email}</p>
-      <p data-testid="hello-from-app">{helloFromAppPackage()}</p>
-      <p style={{ color: '#666', marginTop: '2rem' }}>
-        Phase 2 auth shell. UI (chat + accordion) lands in Phase 6.
-      </p>
-    </main>
-  );
+  return <HomeClient userId={user.id} userEmail={user.email ?? '—'} />;
 }

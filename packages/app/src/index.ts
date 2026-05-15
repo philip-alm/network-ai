@@ -15,8 +15,7 @@ export * from './lib/supabase';
 export * from './lib/env';
 export * from './lib/agent';
 
-// Feature exports will land here as they are built in subsequent phases:
-// export * from './features/chat';
-// export * from './features/contacts';
-// export * from './features/assets';
-// export * from './features/home';
+// Phase 6 features
+export * from './features/chat';
+export * from './features/contacts';
+export * from './features/home';

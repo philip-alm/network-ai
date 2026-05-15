@@ -21,13 +21,8 @@ import { join } from 'node:path';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import {
-  runAgentTurn,
-  createNodeDebugRecorder,
-  MODEL_ID,
-  type AgentMessage,
-  type EmbedQueryFn,
-} from '@network-ai/app';
+import { runAgentTurn, MODEL_ID, type AgentMessage, type EmbedQueryFn } from '@network-ai/app';
+import { createNodeDebugRecorder } from '@network-ai/app/lib/agent/nodeDebugRecorder';
 import { processOneBatch, type EmbedFn } from '../supabase/functions/embed-batch/core';
 
 const ROOT = join(import.meta.dirname ?? __dirname, '..');
