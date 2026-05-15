@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import type { AgentToolInvocation } from '../../lib/agent';
 import type { Segment } from '../../lib/agent/segments';
 import { ToolCallCard } from './ToolCallCard';
+import { ToolGroup, groupReadTools, type ToolRun } from './ToolGroup';
 import { Markdown } from './Markdown';
 
 export type ChatMessage = {
@@ -52,18 +53,56 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
+/** A renderable group of consecutive (text | tool-runs) chunks. */
+type RenderItem =
+  | { kind: 'text'; idx: number; text: string }
+  | { kind: 'toolRun'; idx: number; run: ToolRun };
+
+/**
+ * Walk the flat segments and coalesce *consecutive* tool segments into
+ * a single tool batch, then run groupReadTools on each batch so e.g.
+ * "search × 5" collapses to one group card. Text segments remain
+ * separate boundaries — a text breaks the tool batch.
+ */
+function buildRenderItems(segments: Segment[]): RenderItem[] {
+  const items: RenderItem[] = [];
+  let pendingTools: AgentToolInvocation[] = [];
+
+  const flushTools = (): void => {
+    if (pendingTools.length === 0) return;
+    const runs = groupReadTools(pendingTools);
+    for (const r of runs) {
+      items.push({ kind: 'toolRun', idx: items.length, run: r });
+    }
+    pendingTools = [];
+  };
+
+  for (const s of segments) {
+    if (s.kind === 'text') {
+      flushTools();
+      items.push({ kind: 'text', idx: items.length, text: s.text });
+    } else {
+      pendingTools.push(s.call);
+    }
+  }
+  flushTools();
+  return items;
+}
+
 function AssistantBubble({ message }: { message: ChatMessage }) {
   const segments: Segment[] = message.segments?.length ? message.segments : legacySegments(message);
 
-  // Find the index of the trailing TEXT segment (cursor goes here, if any).
+  const items = buildRenderItems(segments);
+
+  // Find the trailing TEXT item index (cursor goes here, when streaming).
   let trailingTextIdx = -1;
-  for (let i = segments.length - 1; i >= 0; i--) {
-    if (segments[i].kind === 'text') {
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i].kind === 'text') {
       trailingTextIdx = i;
       break;
     }
   }
-  const hasTrailingTool = segments.length > 0 && segments[segments.length - 1].kind === 'tool';
+  const trailingIsText = items.length > 0 && items[items.length - 1].kind === 'text';
 
   return (
     <motion.div
@@ -73,24 +112,37 @@ function AssistantBubble({ message }: { message: ChatMessage }) {
       className="flex justify-start"
     >
       <div className="w-full max-w-[92%] space-y-2.5">
-        {segments.length === 0 && message.streaming ? (
-          <span className="inline-block h-3 w-1.5 animate-cursor-blink rounded-sm bg-fg/70 align-text-bottom" />
+        {items.length === 0 && message.streaming ? (
+          <span className="inline-block h-3 w-[3px] animate-cursor-blink rounded-[1px] bg-fg/60 align-text-bottom" />
         ) : null}
 
-        {segments.map((seg, i) =>
-          seg.kind === 'text' ? (
-            <TextSegment
-              key={`t-${i}`}
-              text={seg.text}
-              showCursor={!!message.streaming && i === trailingTextIdx && !hasTrailingTool}
-            />
-          ) : (
-            <ToolCallCard key={`tc-${seg.id}`} call={seg.call} />
-          ),
-        )}
+        {items.map((it, i) => {
+          if (it.kind === 'text') {
+            return (
+              <TextSegment
+                key={`t-${i}`}
+                text={it.text}
+                showCursor={!!message.streaming && i === trailingTextIdx && trailingIsText}
+              />
+            );
+          }
+          if (it.run.kind === 'single') {
+            return <ToolCallCard key={`s-${callKey(it.run.call)}-${i}`} call={it.run.call} />;
+          }
+          return (
+            <ToolGroup key={`g-${it.run.calls.map(callKey).join('+')}-${i}`} calls={it.run.calls} />
+          );
+        })}
       </div>
     </motion.div>
   );
+}
+
+function callKey(c: AgentToolInvocation): string {
+  // Best-effort stable key; tool IDs aren't part of AgentToolInvocation
+  // shape directly here. Name + sql/query hash is stable per call.
+  const arg = (c.args as { sql?: string; query?: string } | undefined) ?? {};
+  return `${c.name}-${(arg.sql ?? arg.query ?? '').slice(0, 16)}`;
 }
 
 function TextSegment({ text, showCursor }: { text: string; showCursor?: boolean }) {

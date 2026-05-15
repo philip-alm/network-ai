@@ -8,6 +8,14 @@ import { useNetworkStore } from '../../lib/store';
 import { WarmthDot } from './WarmthDot';
 import { getBrowserSupabase } from '../../lib/supabase';
 
+const WARMTH_LABELS: Record<number, string> = {
+  1: 'closest — would do anything',
+  2: 'WhatsApp, no problem',
+  3: 'solid professional contact',
+  4: 'would respond if I asked',
+  5: 'might respond',
+};
+
 export type ContactRowProps = {
   contact: Contact;
   assets: Asset[];
@@ -35,6 +43,12 @@ export function ContactRow({ contact, assets }: ContactRowProps) {
     const t = setTimeout(() => clearHighlight(), 1200);
     return () => clearTimeout(t);
   }, [scrollIntent, contact.id, clearHighlight]);
+
+  useEffect(() => {
+    if (!savedAt) return;
+    const t = setTimeout(() => setSavedAt(null), 2400);
+    return () => clearTimeout(t);
+  }, [savedAt]);
 
   const saveNotes = async (): Promise<void> => {
     if (draftNotes === contact.notes) {
@@ -82,15 +96,22 @@ export function ContactRow({ contact, assets }: ContactRowProps) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         data-testid={`contact-toggle-${contact.id}`}
-        className="flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-surface-soft"
+        className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-surface-soft"
       >
         <WarmthDot warmth={contact.warmth} />
-        <span className="font-medium text-fg tracking-tight">{contact.name}</span>
-        {contact.city ? <span className="text-sm text-muted">· {contact.city}</span> : null}
+        <span className="truncate font-medium tracking-tight text-fg">{contact.name}</span>
+        {contact.city ? (
+          <span className="shrink-0 text-sm text-muted">· {contact.city}</span>
+        ) : null}
+        {ownAssets.length > 0 ? (
+          <span className="ml-2 inline-flex shrink-0 items-center rounded-sm bg-surface-soft px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-muted">
+            {ownAssets.length} {ownAssets.length === 1 ? 'asset' : 'assets'}
+          </span>
+        ) : null}
         <ChevronRight
           size={14}
           aria-hidden
-          className={`ml-auto text-faint transition-transform duration-200 ease-out ${
+          className={`ml-auto shrink-0 text-faint transition-transform duration-200 ease-out ${
             open ? 'rotate-90' : ''
           }`}
         />
@@ -107,6 +128,14 @@ export function ContactRow({ contact, assets }: ContactRowProps) {
             className="overflow-hidden"
           >
             <div className="space-y-4 px-5 pb-5 text-sm">
+              {contact.warmth != null ? (
+                <div className="text-xs text-muted">
+                  <span className="uppercase tracking-wider text-faint">Warmth</span>{' '}
+                  <span className="mono text-fg/85">{contact.warmth}</span>{' '}
+                  <span className="text-muted">— {WARMTH_LABELS[contact.warmth] ?? ''}</span>
+                </div>
+              ) : null}
+
               {contact.tags.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
                   {contact.tags.map((t) => (

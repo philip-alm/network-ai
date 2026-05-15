@@ -62,20 +62,22 @@ export function ChatThread({
                 <MessageBubble key={m.id} message={m} />
               ))}
 
-              {showPhasePill && lastIsStreaming ? (
-                <motion.div
-                  key="phase-pill"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className="flex items-center gap-2 text-xs text-faint"
-                  data-testid="chat-phase"
-                >
-                  <PendingDots />
-                  <span className="mono">{PHASE_COPY[phase!]}</span>
-                </motion.div>
-              ) : null}
+              <AnimatePresence mode="wait" initial={false}>
+                {showPhasePill && lastIsStreaming ? (
+                  <motion.div
+                    key={`phase-${phase}`}
+                    initial={{ opacity: 0, y: 2 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -2 }}
+                    transition={{ duration: 0.16, ease: [0.25, 1, 0.5, 1] }}
+                    className="flex items-center gap-2 text-xs text-faint"
+                    data-testid="chat-phase"
+                  >
+                    <PendingDots />
+                    <span className="mono">{PHASE_COPY[phase!]}</span>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
 
               {retryHint ? (
                 <motion.div
