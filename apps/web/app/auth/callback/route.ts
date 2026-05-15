@@ -1,5 +1,7 @@
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+
+type CookieTuple = { name: string; value: string; options?: CookieOptions };
 
 /**
  * OAuth callback handler. Supabase sends the user back here with `?code=...`
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest) {
     {
       cookies: {
         getAll: () => request.cookies.getAll(),
-        setAll: (cookies) => {
+        setAll: (cookies: CookieTuple[]) => {
           cookies.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
           });
