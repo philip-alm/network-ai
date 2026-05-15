@@ -6,7 +6,9 @@ import {
   parseToolResult,
   type AgentMessage,
   type AgentToolInvocation,
+  type AgentPhase,
 } from '../../lib/agent';
+import type { Segment } from '../../lib/agent/segments';
 import { useNetworkStore } from '../../lib/store';
 import type { ChatMessage } from './MessageBubble';
 
@@ -21,8 +23,9 @@ export type UseAgentLoopResult = {
   stop: () => void;
   isPending: boolean;
   error: string | null;
-  streamingText: string;
-  streamingToolCalls: AgentToolInvocation[];
+  /** Ordered (text | tool) segments of the in-flight turn — render this. */
+  streamingSegments: Segment[];
+  phase: AgentPhase;
   retryHint: string | null;
 };
 
@@ -38,8 +41,8 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [streamingText, setStreamingText] = useState('');
-  const [streamingToolCalls, setStreamingToolCalls] = useState<AgentToolInvocation[]>([]);
+  const [streamingSegments, setStreamingSegments] = useState<Segment[]>([]);
+  const [phase, setPhase] = useState<AgentPhase>('idle');
   const [retryHint, setRetryHint] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -48,8 +51,8 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
   const send = useCallback(
     async (text: string): Promise<void> => {
       setError(null);
-      setStreamingText('');
-      setStreamingToolCalls([]);
+      setStreamingSegments([]);
+      setPhase('thinking');
       setRetryHint(null);
 
       const userMsg: ChatMessage = { id: nextId(), role: 'user', text };
@@ -71,24 +74,9 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
           history: historyBeforeThisTurn,
           abortSignal: controller.signal,
           callbacks: {
-            onTextDelta: (delta) => setStreamingText((prev) => prev + delta),
-            onToolStart: (tc) =>
-              setStreamingToolCalls((prev) => [
-                ...prev,
-                { name: tc.name, args: tc.args, result: null, status: 'ok' },
-              ]),
-            onToolEnd: (tc) => {
-              setStreamingToolCalls((prev) =>
-                prev.map((t) =>
-                  t.name === tc.name && t.result === null
-                    ? { ...t, result: tc.result, status: tc.status, durationMs: tc.durationMs }
-                    : t,
-                ),
-              );
-              // Optimistic store merge — keeps the accordion in sync within ~50ms
-              // of the tool returning, well ahead of Supabase Realtime echo.
-              applyOptimistic(tc, storeActions);
-            },
+            onSegmentsUpdate: (segs) => setStreamingSegments(segs),
+            onPhaseChange: (p) => setPhase(p),
+            onToolEnd: (tc) => applyOptimistic(tc, storeActions),
             onRetry: (attempt, kind) =>
               setRetryHint(`Retrying (attempt ${attempt + 1}) — recoverable ${kind}…`),
           },
@@ -99,13 +87,15 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
           role: 'assistant',
           text: result.text || (result.interrupted ? '(interrupted)' : ''),
           toolCalls: result.toolCalls as AgentToolInvocation[],
+          segments: result.segments,
         };
         setMessages((prev) => [...prev, assistantMsg]);
-        setStreamingText('');
-        setStreamingToolCalls([]);
+        setStreamingSegments([]);
+        setPhase('idle');
         setRetryHint(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
+        setPhase('idle');
       } finally {
         setIsPending(false);
         abortRef.current = null;
@@ -124,17 +114,12 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
     stop,
     isPending,
     error,
-    streamingText,
-    streamingToolCalls,
+    streamingSegments,
+    phase,
     retryHint,
   };
 }
 
-/**
- * Apply optimistic upserts/removes to the cross-pane store based on the
- * parsed tool result. No-op when the tool isn't a mutation or didn't
- * return a recognizable row.
- */
 function applyOptimistic(
   tc: { name: string; args: unknown; result: unknown },
   actions: ReturnType<typeof useNetworkStore.getState>['actions'],

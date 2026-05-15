@@ -4,7 +4,8 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { MessageBubble, type ChatMessage } from './MessageBubble';
 import { ChatComposer } from './ChatComposer';
-import type { AgentToolInvocation } from '../../lib/agent';
+import type { AgentPhase } from '../../lib/agent';
+import type { Segment } from '../../lib/agent/segments';
 
 export type ChatThreadProps = {
   messages: ChatMessage[];
@@ -12,8 +13,8 @@ export type ChatThreadProps = {
   error: string | null;
   onSubmit: (text: string) => void | Promise<void>;
   onStop?: () => void;
-  streamingText?: string;
-  streamingToolCalls?: AgentToolInvocation[];
+  streamingSegments?: Segment[];
+  phase?: AgentPhase;
   retryHint?: string | null;
 };
 
@@ -23,14 +24,23 @@ const STARTER_PROMPTS = [
   'What assets are available for a podcast event?',
 ];
 
+const PHASE_COPY: Record<AgentPhase, string> = {
+  idle: '',
+  thinking: 'thinking',
+  running_tools: 'running tools',
+  composing: 'composing',
+  retrying: 'retrying',
+  done: '',
+};
+
 export function ChatThread({
   messages,
   isPending,
   error,
   onSubmit,
   onStop,
-  streamingText,
-  streamingToolCalls,
+  streamingSegments,
+  phase,
   retryHint,
 }: ChatThreadProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -38,9 +48,9 @@ export function ChatThread({
   useLayoutEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.clientHeight - el.scrollTop < 120;
+    const nearBottom = el.scrollHeight - el.clientHeight - el.scrollTop < 160;
     if (nearBottom) el.scrollTop = el.scrollHeight;
-  }, [messages.length, isPending, streamingText, streamingToolCalls?.length]);
+  }, [messages.length, isPending, streamingSegments?.length]);
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -48,12 +58,12 @@ export function ChatThread({
   }, []);
 
   const inFlight: ChatMessage | null =
-    isPending && (streamingText || (streamingToolCalls?.length ?? 0) > 0)
+    isPending && streamingSegments && streamingSegments.length > 0
       ? {
           id: '__streaming__',
           role: 'assistant',
-          text: streamingText ?? '',
-          toolCalls: streamingToolCalls,
+          text: '',
+          segments: streamingSegments,
           streaming: true,
         }
       : null;
@@ -85,7 +95,18 @@ export function ChatThread({
               className="flex items-center gap-2 text-sm text-muted"
               data-testid="chat-pending"
             >
-              <PendingDots /> Thinking
+              <PendingDots /> {phase && phase !== 'idle' ? PHASE_COPY[phase] : 'thinking'}
+            </motion.div>
+          ) : null}
+
+          {isPending && inFlight && phase && phase !== 'idle' && phase !== 'done' ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex items-center gap-2 text-xs text-faint"
+              data-testid="chat-phase"
+            >
+              <PendingDots /> <span className="font-mono">{PHASE_COPY[phase]}</span>
             </motion.div>
           ) : null}
 

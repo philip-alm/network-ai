@@ -9,7 +9,10 @@ export type {
   AgentToolInvocation,
   AgentTurnResult,
   StreamingCallbacks,
+  AgentPhase,
 } from './runAgent';
+
+export type { Segment } from './segments';
 
 export { parseToolResult, type ToolCardKind } from './toolResultParser';
 

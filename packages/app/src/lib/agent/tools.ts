@@ -27,6 +27,16 @@ function vectorLiteral(v: number[]): string {
   return `[${v.join(',')}]`;
 }
 
+/**
+ * Normalize SQL the LLM emits before it hits the RPC wrapper.
+ *  - Strip trailing whitespace + semicolons (our `format('select … from (%s) t', q)`
+ *    chokes on a `;` inside the parens; the model adds them by habit).
+ *  - Collapse a trailing newline into a single space.
+ */
+function normalizeSql(sql: string): string {
+  return sql.replace(/[\s;]+$/g, '').trim();
+}
+
 const QuerySqlSchema = z.object({
   sql: z.string().min(1).describe('A single SELECT or WITH statement. No mutations.'),
 });
@@ -68,7 +78,8 @@ export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) 
         'Returns rows array on success, or { error, hint, retriable } on failure.',
       QuerySqlSchema,
       async ({ sql }) => {
-        const lc = sql.trim().toLowerCase();
+        const cleaned = normalizeSql(sql);
+        const lc = cleaned.toLowerCase();
         if (!(lc.startsWith('select') || lc.startsWith('with'))) {
           return toolError({
             error: 'query_sql only accepts SELECT or WITH statements.',
@@ -76,7 +87,7 @@ export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) 
             retriable: false,
           });
         }
-        const { data, error } = await supabase.rpc('query_sql', { query: sql });
+        const { data, error } = await supabase.rpc('query_sql', { query: cleaned });
         if (error) {
           return toolError({
             error: error.message,
@@ -97,7 +108,8 @@ export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) 
         'Returns affected rows on success, or { error, hint, retriable } on failure.',
       MutateSqlSchema,
       async ({ sql }) => {
-        const lc = sql.trim().toLowerCase();
+        const cleaned = normalizeSql(sql);
+        const lc = cleaned.toLowerCase();
         if (!(lc.startsWith('insert') || lc.startsWith('update') || lc.startsWith('delete'))) {
           return toolError({
             error: 'mutate_sql only accepts INSERT / UPDATE / DELETE.',
@@ -112,14 +124,16 @@ export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) 
             retriable: false,
           });
         }
-        if (lc.includes('user_id')) {
+        // Guard against `user_id` only in the column list / VALUES — false-
+        // positives on UPDATE … WHERE user_id = auth.uid() are too noisy.
+        if (/\(\s*[^)]*\buser_id\b/i.test(cleaned) || /set\s+[^;]*\buser_id\s*=/i.test(cleaned)) {
           return toolError({
             error: 'Do not set user_id in your SQL.',
             hint: PG_HINTS['42501'],
             retriable: false,
           });
         }
-        const { data, error } = await supabase.rpc('mutate_sql', { query: sql });
+        const { data, error } = await supabase.rpc('mutate_sql', { query: cleaned });
         if (error) {
           return toolError({
             error: error.message,
