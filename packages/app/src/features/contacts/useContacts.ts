@@ -38,9 +38,18 @@ export function useContacts(): { contacts: Contact[]; assets: Asset[]; refetch: 
     let alive = true;
 
     async function fetchAll(): Promise<void> {
+      // Filter soft-deleted rows so the accordion shows only live data.
       const [{ data: cs }, { data: as }] = await Promise.all([
-        supabase.from('contacts').select('*').order('updated_at', { ascending: false }),
-        supabase.from('assets').select('*').order('updated_at', { ascending: false }),
+        supabase
+          .from('contacts')
+          .select('*')
+          .is('deleted_at', null)
+          .order('updated_at', { ascending: false }),
+        supabase
+          .from('assets')
+          .select('*')
+          .is('deleted_at', null)
+          .order('updated_at', { ascending: false }),
       ]);
       if (!alive) return;
       setContacts((cs as Contact[]) ?? []);

@@ -12,7 +12,12 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { getBrowserSupabase } from '../supabase';
 import { env } from '../env';
-import { runAgentTurn, type AgentTurnResult, type AgentMessage } from './runAgent';
+import {
+  runAgentTurn,
+  type AgentTurnResult,
+  type AgentMessage,
+  type StreamingCallbacks,
+} from './runAgent';
 import { MODEL_ID } from './systemPrompt';
 import { browserEmbedQuery } from './browserEmbedQuery';
 
@@ -21,6 +26,8 @@ export type BrowserAgentInput = {
   userId: string;
   userMessage: string;
   history?: AgentMessage[];
+  abortSignal?: AbortSignal;
+  callbacks?: StreamingCallbacks;
 };
 
 /** Drive one agent turn in the browser. */
@@ -43,5 +50,7 @@ export async function runBrowserAgentTurn(input: BrowserAgentInput): Promise<Age
     userId: input.userId,
     userMessage: input.userMessage,
     history: input.history,
+    abortSignal: input.abortSignal,
+    callbacks: input.callbacks,
   });
 }

@@ -1,12 +1,15 @@
 'use client';
 
 import type { AgentToolInvocation } from '../../lib/agent';
+import { ToolCallPill } from './ToolCallPill';
 
 export type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   toolCalls?: AgentToolInvocation[];
+  /** True for the in-flight streaming bubble — renders a blinking cursor. */
+  streaming?: boolean;
 };
 
 export function MessageBubble({ message }: { message: ChatMessage }) {
@@ -32,20 +35,22 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
           whiteSpace: 'pre-wrap',
         }}
       >
-        {message.text}
         {!isUser && message.toolCalls && message.toolCalls.length > 0 ? (
-          <details style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
-            <summary style={{ cursor: 'pointer' }}>
-              {message.toolCalls.length} tool call{message.toolCalls.length === 1 ? '' : 's'}
-            </summary>
-            <ul style={{ margin: '6px 0 0 0', paddingLeft: 18 }}>
-              {message.toolCalls.map((tc, i) => (
-                <li key={i}>
-                  <code>{tc.name}</code>
-                </li>
-              ))}
-            </ul>
-          </details>
+          <div style={{ marginBottom: message.text ? 8 : 0 }}>
+            {message.toolCalls.map((tc, i) => (
+              <ToolCallPill key={i} call={tc} />
+            ))}
+          </div>
+        ) : null}
+        {message.text}
+        {message.streaming ? (
+          <span
+            aria-hidden
+            data-testid="streaming-cursor"
+            style={{ display: 'inline-block', marginLeft: 2 }}
+          >
+            ▋
+          </span>
         ) : null}
       </div>
     </div>

@@ -6,9 +6,10 @@ import type { Contact, Asset } from './useContacts';
 export type ContactsAccordionProps = {
   contacts: Contact[];
   assets: Asset[];
+  onChange?: () => void;
 };
 
-export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) {
+export function ContactsAccordion({ contacts, assets, onChange }: ContactsAccordionProps) {
   const unattachedAssets = assets.filter((a) => a.contact_id == null);
 
   return (
@@ -25,7 +26,9 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
           No contacts yet. Tell the assistant about someone.
         </div>
       ) : (
-        contacts.map((c) => <ContactRow key={c.id} contact={c} assets={assets} />)
+        contacts.map((c) => (
+          <ContactRow key={c.id} contact={c} assets={assets} onChange={onChange} />
+        ))
       )}
 
       {unattachedAssets.length > 0 ? (

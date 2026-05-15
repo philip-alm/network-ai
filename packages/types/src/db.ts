@@ -8,6 +8,7 @@ export type Database = {
           availability: string | null;
           contact_id: string | null;
           created_at: string;
+          deleted_at: string | null;
           description: string;
           embedding: unknown;
           embedding_generated_at: string | null;
@@ -23,6 +24,7 @@ export type Database = {
           availability?: string | null;
           contact_id?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           description?: string;
           embedding?: unknown;
           embedding_generated_at?: string | null;
@@ -38,6 +40,7 @@ export type Database = {
           availability?: string | null;
           contact_id?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           description?: string;
           embedding?: unknown;
           embedding_generated_at?: string | null;
@@ -122,6 +125,7 @@ export type Database = {
         Row: {
           city: string | null;
           created_at: string;
+          deleted_at: string | null;
           embedding: unknown;
           embedding_generated_at: string | null;
           embedding_model: string | null;
@@ -137,6 +141,7 @@ export type Database = {
         Insert: {
           city?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           embedding?: unknown;
           embedding_generated_at?: string | null;
           embedding_model?: string | null;
@@ -152,6 +157,7 @@ export type Database = {
         Update: {
           city?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           embedding?: unknown;
           embedding_generated_at?: string | null;
           embedding_model?: string | null;
@@ -209,6 +215,7 @@ export type Database = {
           availability: string | null;
           contact_id: string | null;
           created_at: string;
+          deleted_at: string | null;
           description: string;
           embedding: unknown;
           embedding_generated_at: string | null;
@@ -241,6 +248,7 @@ export type Database = {
         Returns: {
           city: string | null;
           created_at: string;
+          deleted_at: string | null;
           embedding: unknown;
           embedding_generated_at: string | null;
           embedding_model: string | null;

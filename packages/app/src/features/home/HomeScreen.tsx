@@ -11,10 +11,10 @@ export type HomeScreenProps = {
 };
 
 export function HomeScreen({ userId, userEmail, onSignOut }: HomeScreenProps) {
-  // One thread per browser tab — Phase 6.5 will surface a thread switcher.
   const threadId = useMemo(() => crypto.randomUUID(), []);
-  const { messages, send, isPending, error } = useAgentLoop({ userId, threadId });
-  const { contacts, assets } = useContacts();
+  const { messages, send, stop, isPending, error, streamingText, streamingToolCalls, retryHint } =
+    useAgentLoop({ userId, threadId });
+  const { contacts, assets, refetch } = useContacts();
 
   return (
     <div
@@ -38,12 +38,27 @@ export function HomeScreen({ userId, userEmail, onSignOut }: HomeScreenProps) {
       >
         <strong>network-ai</strong>
         <span style={{ marginLeft: 'auto', color: '#666', fontSize: 13 }}>{userEmail}</span>
+        <a
+          href="/settings"
+          data-testid="settings-link"
+          style={{
+            marginLeft: 16,
+            padding: '4px 10px',
+            color: '#333',
+            border: '1px solid #ddd',
+            borderRadius: 6,
+            fontSize: 13,
+            textDecoration: 'none',
+          }}
+        >
+          Settings
+        </a>
         <button
           type="button"
           onClick={onSignOut}
           data-testid="sign-out"
           style={{
-            marginLeft: 16,
+            marginLeft: 8,
             padding: '4px 10px',
             background: 'transparent',
             border: '1px solid #ddd',
@@ -55,8 +70,17 @@ export function HomeScreen({ userId, userEmail, onSignOut }: HomeScreenProps) {
           Sign out
         </button>
       </header>
-      <ChatThread messages={messages} isPending={isPending} error={error} onSubmit={send} />
-      <ContactsAccordion contacts={contacts} assets={assets} />
+      <ChatThread
+        messages={messages}
+        isPending={isPending}
+        error={error}
+        onSubmit={send}
+        onStop={stop}
+        streamingText={streamingText}
+        streamingToolCalls={streamingToolCalls}
+        retryHint={retryHint}
+      />
+      <ContactsAccordion contacts={contacts} assets={assets} onChange={refetch} />
     </div>
   );
 }
