@@ -1,5 +1,5 @@
 {
-  "name": "@network-ai/db-tests",
+  "name": "@reknowable/db-tests",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -9,8 +9,8 @@
     "db:test": "vitest run"
   },
   "dependencies": {
-    "@network-ai/test-utils": "workspace:*",
-    "@network-ai/types": "workspace:*",
+    "@reknowable/test-utils": "workspace:*",
+    "@reknowable/types": "workspace:*",
     "@supabase/supabase-js": "^2.50.0"
   },
   "devDependencies": {

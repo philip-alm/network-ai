@@ -1,11 +1,11 @@
 'use client';
 
 const WARMTH_LABELS: Record<number, string> = {
-  1: 'closest — would do anything',
-  2: 'WhatsApp, no problem',
-  3: 'solid professional contact',
-  4: 'would respond if I asked',
-  5: 'might respond',
+  1: 'Met once, vague memory',
+  2: 'Would answer an email',
+  3: 'Catches up once in a while',
+  4: 'Always quick to reply',
+  5: 'Would drop everything',
 };
 
 const WARMTH_CLASSES: Record<number, string> = {
@@ -28,10 +28,11 @@ export function WarmthDot({ warmth, size = 9 }: { warmth: number | null; size?: 
     );
   }
   const tone = WARMTH_CLASSES[warmth] ?? 'bg-faint';
+  const label = `warmth ${warmth}, ${WARMTH_LABELS[warmth] ?? ''}`.replace(/, $/, '');
   return (
     <span
-      aria-label={`warmth ${warmth} — ${WARMTH_LABELS[warmth] ?? ''}`}
-      title={`warmth ${warmth} — ${WARMTH_LABELS[warmth] ?? ''}`}
+      aria-label={label}
+      title={label}
       data-testid={`warmth-${warmth}`}
       className={`inline-block rounded-full ${tone}`}
       style={{ width: size, height: size }}

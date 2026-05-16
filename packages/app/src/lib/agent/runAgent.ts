@@ -15,7 +15,7 @@
 
 import { streamText, stepCountIs } from 'ai';
 import type { LanguageModel, ModelMessage } from 'ai';
-import { makeTools, type EmbedQueryFn } from './tools';
+import { makeTools, type EmbedQueryFn, type SetPanelStateFn } from './tools';
 import type { SupabaseClient } from '../supabase';
 import { systemPrompt } from './systemPrompt';
 import { noopDebugRecorder, type DebugRecorder } from './debugRecorder';
@@ -62,6 +62,9 @@ export type StreamingCallbacks = {
   onToolEnd?: (call: AgentToolInvocation & { id: string }) => void;
   /** Teach-retry trigger. */
   onRetry?: (attempt: number, errorKind: string) => void;
+  /** Fires when queued user messages are injected as steering between
+   *  steps. The receiver should render them as user bubbles. */
+  onSteeringInjected?: (texts: string[]) => void;
 };
 
 export type RunAgentOptions = {
@@ -78,6 +81,19 @@ export type RunAgentOptions = {
   callbacks?: StreamingCallbacks;
   firstChunkMs?: number;
   stallMs?: number;
+  /** Read the current queue of pending user-steering messages. Called at
+   *  the start of every LLM step beyond the first; non-empty contents
+   *  are injected as user messages into that step's context. Return [] to
+   *  do nothing. Should read fresh state (use a ref) to see additions
+   *  made after the turn started. */
+  getPendingQueue?: () => string[];
+  /** Called after the queue's contents have been injected; receiver
+   *  drops those items from its queue so they aren't re-injected next
+   *  step. Paired with getPendingQueue. */
+  clearPendingQueue?: () => void;
+  /** Browser-only: lets the agent's `set_panel` tool drive the
+   *  right-pane filter/sort/view. Omitted in headless contexts. */
+  setPanelState?: SetPanelStateFn;
 };
 
 const DEFAULT_FIRST_CHUNK_MS = 8_000;
@@ -104,6 +120,7 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
     supabase: opts.supabase,
     embedQuery: opts.embedQuery,
     recorder,
+    setPanelState: opts.setPanelState,
   });
 
   const teachingExtras: AgentMessage[] = [];
@@ -158,6 +175,26 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
         tools,
         stopWhen: stepCountIs(opts.maxSteps ?? 12),
         abortSignal: timer.signal,
+        // Inline steering: at the start of each subsequent step, drain
+        // the user's queue into the next LLM call as user messages so
+        // they can redirect mid-turn without waiting for the loop to
+        // finish. Skipped on step 0 (the original user message is
+        // already in `messages`).
+        prepareStep: ({ stepNumber, messages: stepMessages }) => {
+          if (stepNumber === 0) return undefined;
+          const pending = opts.getPendingQueue?.() ?? [];
+          if (pending.length === 0) return undefined;
+          opts.clearPendingQueue?.();
+          opts.callbacks?.onSteeringInjected?.(pending);
+          recorder.recordTimeline('steering/injected', {
+            step: stepNumber,
+            count: pending.length,
+          });
+          const injected: ModelMessage[] = pending.map(
+            (content) => ({ role: 'user', content }) as ModelMessage,
+          );
+          return { messages: [...stepMessages, ...injected] };
+        },
         onStepFinish: ({ toolCalls, toolResults }) => {
           // Belt-and-suspenders: ensure every tool result eventually fires
           // onToolEnd + lands in segments, even when the provider's

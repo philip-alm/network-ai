@@ -1,4 +1,4 @@
-# @network-ai/app
+# @reknowable/app
 
 Shared screens, business logic, and the agent loop. Renders identically on web and native via NativeWind + Solito.
 
@@ -24,8 +24,8 @@ Re-exports:
 - `@supabase/supabase-js` — the data layer; only HTTP-to-Supabase happens through this client
 - `react`, `react-native` — UI primitives shared by both shells
 - `zod` — schema validation at every boundary
-- `@network-ai/ui` — leaf components (Button, Input, Accordion, …)
-- `@network-ai/types` — generated DB types + agent tool I/O types
+- `@reknowable/ui` — leaf components (Button, Input, Accordion, …)
+- `@reknowable/types` — generated DB types + agent tool I/O types
 
 ## What's banned in this package
 
@@ -46,8 +46,8 @@ Every file under `src/features/` and `src/lib/` has a `*.test.ts(x)` next to it.
 
 ### How Claude verifies this module
 
-1. `pnpm -F @network-ai/app test` — green
-2. `pnpm -F @network-ai/app check` — green
+1. `pnpm -F @reknowable/app test` — green
+2. `pnpm -F @reknowable/app check` — green
 3. If touching agent: `pnpm verify:agent-loop` — green
 4. If touching UI: `pnpm verify:ui` — green (Playwright in `apps/web/tests/`)
 

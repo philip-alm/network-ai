@@ -11,6 +11,7 @@
 
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { getBrowserSupabase } from '../supabase';
+import { useNetworkStore } from '../store';
 import { env } from '../env';
 import {
   runAgentTurn,
@@ -28,6 +29,9 @@ export type BrowserAgentInput = {
   history?: AgentMessage[];
   abortSignal?: AbortSignal;
   callbacks?: StreamingCallbacks;
+  /** Mid-turn steering — read fresh queue + clear after injection. */
+  getPendingQueue?: () => string[];
+  clearPendingQueue?: () => void;
 };
 
 /** Drive one agent turn in the browser. */
@@ -52,5 +56,14 @@ export async function runBrowserAgentTurn(input: BrowserAgentInput): Promise<Age
     history: input.history,
     abortSignal: input.abortSignal,
     callbacks: input.callbacks,
+    getPendingQueue: input.getPendingQueue,
+    clearPendingQueue: input.clearPendingQueue,
+    // Bind the set_panel tool to the live zustand store so the agent
+    // can drive the right pane in the same way the user UI does.
+    // `source: 'agent'` flags this as an AI-driven change so the store
+    // captures an undo snapshot and the UI shows the "Filters set by
+    // Reknowable" banner with Undo.
+    setPanelState: (patch) =>
+      useNetworkStore.getState().actions.setPanelState(patch, { source: 'agent' }),
   });
 }

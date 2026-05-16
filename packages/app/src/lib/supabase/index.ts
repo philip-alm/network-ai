@@ -12,7 +12,7 @@
 
 import { createClient, type SupabaseClient as RawSupabaseClient } from '@supabase/supabase-js';
 import { createBrowserClient } from '@supabase/ssr';
-import type { Database } from '@network-ai/types';
+import type { Database } from '@reknowable/types';
 import { env } from '../env';
 
 export type SupabaseClient = RawSupabaseClient<Database>;

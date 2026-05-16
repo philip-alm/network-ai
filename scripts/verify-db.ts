@@ -60,12 +60,12 @@ step('Re-generate TS types from local schema', () => {
 });
 
 step('DB tests pass', () => {
-  run('pnpm -F @network-ai/db-tests db:test');
+  run('pnpm -F @reknowable/db-tests db:test');
 });
 
 step('Lockfile + workspace types still compile', () => {
   if (!existsSync(join(ROOT, 'pnpm-lock.yaml'))) throw new Error('pnpm-lock.yaml missing');
-  run('pnpm -F @network-ai/types check');
+  run('pnpm -F @reknowable/types check');
 });
 
 console.log('\n✓ db layer is green\n');

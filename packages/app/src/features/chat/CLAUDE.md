@@ -11,7 +11,7 @@ Chat UI: thread + composer + bubbles + useAgentLoop hook.
 
 ## Dependencies
 
-- `@network-ai/app/lib/agent` — runBrowserAgentTurn
+- `@reknowable/app/lib/agent` — runBrowserAgentTurn
 - React only (no NativeWind/RN primitives yet — that's Phase 7)
 
 ## Tests

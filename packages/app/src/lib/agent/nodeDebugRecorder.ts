@@ -1,6 +1,6 @@
 /**
  * NodeDebugRecorder — writes debug artifacts to
- * ~/Documents/network-ai-debug/<timestamp>-<slug>/
+ * ~/Documents/reknowable-debug/<timestamp>-<slug>/
  *
  * Best-effort: write failures are caught and surfaced via console.error
  * but never thrown back into the agent loop (per CLAUDE.md §8 contract).
@@ -22,7 +22,7 @@ function slug(): string {
 export function createNodeDebugRecorder(
   opts: { rootDir?: string; slug?: string } = {},
 ): DebugRecorder {
-  const root = opts.rootDir ?? join(homedir(), 'Documents', 'network-ai-debug');
+  const root = opts.rootDir ?? join(homedir(), 'Documents', 'reknowable-debug');
   const id = opts.slug ?? slug();
   const dir = join(root, id);
 

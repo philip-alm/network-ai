@@ -9,7 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient } from '@supabase/supabase-js';
-import { testUserHarness, seedFactory, type TestUser } from '@network-ai/test-utils';
+import { testUserHarness, seedFactory, type TestUser } from '@reknowable/test-utils';
 
 const adminSupabase = createClient(
   process.env.SUPABASE_TEST_URL!,

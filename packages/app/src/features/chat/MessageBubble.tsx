@@ -45,7 +45,7 @@ function UserBubble({ text }: { text: string }) {
     >
       <div
         data-testid="bubble-user"
-        className="max-w-[88%] rounded-lg bg-fg px-3.5 py-2 text-sm leading-relaxed text-bg"
+        className="max-w-[88%] whitespace-pre-wrap rounded-2xl bg-fg px-3.5 py-2 text-sm leading-relaxed text-bg"
       >
         {text}
       </div>
@@ -111,9 +111,9 @@ function AssistantBubble({ message }: { message: ChatMessage }) {
       transition={{ duration: 0.16, ease: [0.25, 1, 0.5, 1] }}
       className="flex justify-start"
     >
-      <div className="w-full max-w-[92%] space-y-2.5">
+      <div className="w-full max-w-[92%] space-y-3">
         {items.length === 0 && message.streaming ? (
-          <span className="inline-block h-3 w-[3px] animate-cursor-blink rounded-[1px] bg-fg/60 align-text-bottom" />
+          <span className="inline-block h-[14px] w-[3px] animate-cursor-blink rounded-[1px] bg-fg/60 align-text-bottom" />
         ) : null}
 
         {items.map((it, i) => {
@@ -153,7 +153,7 @@ function TextSegment({ text, showCursor }: { text: string; showCursor?: boolean 
       {showCursor ? (
         <span
           aria-hidden
-          className="ml-0.5 inline-block h-3.5 w-[3px] -translate-y-px animate-cursor-blink rounded-[1px] bg-fg/60 align-text-bottom"
+          className="ml-0.5 inline-block h-[14px] w-[3px] -translate-y-px animate-cursor-blink rounded-[1px] bg-fg/60 align-text-bottom"
         />
       ) : null}
     </div>

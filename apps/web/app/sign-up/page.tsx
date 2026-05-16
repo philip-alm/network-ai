@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { SignUpScreen } from '@network-ai/app';
+import { SignUpScreen } from '@reknowable/app';
 
 export default function SignUpPage() {
   const router = useRouter();

@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SignInScreen } from '@network-ai/app';
+import { SignInScreen } from '@reknowable/app';
 
 function SignInBody() {
   const router = useRouter();

@@ -1,4 +1,4 @@
-# @network-ai/test-utils
+# @reknowable/test-utils
 
 Shared test harnesses: `testUserHarness` (spins up an isolated Supabase user for a test), `seedFactory` (factories for contacts / assets / threads), `agentReplayHarness` (replay a recorded LLM turn against current code).
 
@@ -17,7 +17,7 @@ Future exports:
 ## Dependencies
 
 - `@supabase/supabase-js` — admin client for creating test users
-- `@network-ai/types` — DB types
+- `@reknowable/types` — DB types
 
 ## What's banned in this package
 
@@ -31,8 +31,8 @@ Yes — the test utilities themselves are tested. A broken harness silently brea
 
 ### How Claude verifies this module
 
-1. `pnpm -F @network-ai/test-utils test` — green
-2. `pnpm -F @network-ai/test-utils check` — green
+1. `pnpm -F @reknowable/test-utils test` — green
+2. `pnpm -F @reknowable/test-utils check` — green
 
 ## Non-goals
 

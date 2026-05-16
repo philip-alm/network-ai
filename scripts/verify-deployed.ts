@@ -45,7 +45,7 @@ if (!SUPA_URL || !SUPA_ANON || !SUPA_SECRET) {
 }
 
 // Mimics a browser hitting the deployed Vercel site.
-const SIMULATED_ORIGIN = 'https://network-ai.vercel.app';
+const SIMULATED_ORIGIN = 'https://reknowable.vercel.app';
 
 function step(label: string, fn: () => Promise<void> | void): Promise<void> {
   process.stdout.write(`[verify:deployed] ${label} ... `);

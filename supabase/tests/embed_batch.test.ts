@@ -9,7 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { testUserHarness, seedFactory, type TestUser } from '@network-ai/test-utils';
+import { testUserHarness, seedFactory, type TestUser } from '@reknowable/test-utils';
 import { processOneBatch, EMBEDDING_DIM, EMBEDDING_MODEL } from '../functions/embed-batch/core';
 
 function adminClient(): SupabaseClient {

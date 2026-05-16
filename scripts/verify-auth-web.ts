@@ -6,7 +6,7 @@
  *   1. Local Supabase is running.
  *   2. Auth integration tests pass (sign-up + sign-in + sign-out + RLS).
  *   3. apps/web builds (the auth routes + middleware compile).
- *   4. @network-ai/app component tests pass (SignInScreen / SignUpScreen).
+ *   4. @reknowable/app component tests pass (SignInScreen / SignUpScreen).
  *
  * Phase 6 will add Playwright E2E that drives the actual browser flow.
  */
@@ -46,15 +46,15 @@ step('Auth integration tests pass', () => {
   // Runs the full DB-tests suite (auth.test.ts plus the rest, all colocated
   // because they share the local-Supabase harness). Fast enough to do this
   // every time.
-  run('pnpm -F @network-ai/db-tests db:test');
+  run('pnpm -F @reknowable/db-tests db:test');
 });
 
-step('@network-ai/app component tests pass', () => {
-  run('pnpm -F @network-ai/app test');
+step('@reknowable/app component tests pass', () => {
+  run('pnpm -F @reknowable/app test');
 });
 
 step('apps/web builds with auth wiring', () => {
-  run('pnpm -F @network-ai/web build');
+  run('pnpm -F @reknowable/web build');
 });
 
 console.log('\n✓ auth layer is green\n');

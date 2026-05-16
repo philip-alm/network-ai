@@ -12,15 +12,21 @@
 
 import { z } from 'zod';
 import type { SupabaseClient } from '../supabase';
+import type { PanelState } from '../store';
 import { toolWrap, toolError, PG_HINTS } from './toolWrap';
 import type { DebugRecorder } from './debugRecorder';
 
 export type EmbedQueryFn = (text: string) => Promise<number[]>;
 
+/** Optional callback the agent uses to drive the right-pane filter/sort/
+ *  view. Not provided in node scripts; only browser contexts wire this. */
+export type SetPanelStateFn = (patch: Partial<PanelState>) => void;
+
 export type MakeToolsOptions = {
   supabase: SupabaseClient;
   embedQuery: EmbedQueryFn;
   recorder?: DebugRecorder;
+  setPanelState?: SetPanelStateFn;
 };
 
 function vectorLiteral(v: number[]): string {
@@ -205,7 +211,102 @@ async function inlineEmbed(
   }
 }
 
-export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) {
+const ContactFilterPatchSchema = z
+  .object({
+    tags: z
+      .array(z.string())
+      .optional()
+      .describe('OR within facet — any of these tags counts as a match.'),
+    tagsAll: z
+      .array(z.string())
+      .optional()
+      .describe('AND within facet — contact must carry every listed tag.'),
+    cities: z.array(z.string()).optional(),
+    warmth: z
+      .array(z.number().int().min(1).max(5))
+      .optional()
+      .describe('Warmth levels to keep, 1=closest 5=most distant.'),
+    hasAssets: z
+      .boolean()
+      .nullable()
+      .optional()
+      .describe('true=only contacts with assets, false=only without, null=both.'),
+    updatedWithinDays: z
+      .number()
+      .int()
+      .min(1)
+      .max(365)
+      .nullable()
+      .optional()
+      .describe('Keep only contacts updated within the last N days.'),
+  })
+  .describe('Contact filter patch — omit a key to leave it unchanged.');
+
+const AssetFilterPatchSchema = z
+  .object({
+    tags: z.array(z.string()).optional(),
+    tagsAll: z.array(z.string()).optional(),
+    ownerIds: z
+      .array(z.string().uuid())
+      .optional()
+      .describe('Restrict to assets owned by these contact UUIDs.'),
+    hasOwner: z
+      .boolean()
+      .nullable()
+      .optional()
+      .describe('true=attached only, false=unattached only, null=both.'),
+    availabilityContains: z
+      .string()
+      .optional()
+      .describe('Substring (case-insensitive) over availability text.'),
+    updatedWithinDays: z.number().int().min(1).max(365).nullable().optional(),
+  })
+  .describe('Asset filter patch — omit a key to leave it unchanged.');
+
+const SetPanelSchema = z.object({
+  contactFilter: ContactFilterPatchSchema.optional(),
+  assetFilter: AssetFilterPatchSchema.optional(),
+  contactSort: z
+    .enum([
+      'updated_desc',
+      'created_desc',
+      'name_asc',
+      'name_desc',
+      'warmth_asc',
+      'warmth_desc',
+      'asset_count_desc',
+    ])
+    .optional()
+    .describe(
+      'Sort order for contacts. asset_count_desc = people with most ' +
+        'assets first (proxy for "most active providers").',
+    ),
+  assetSort: z.enum(['updated_desc', 'created_desc', 'name_asc', 'name_desc']).optional(),
+  search: z
+    .string()
+    .optional()
+    .describe(
+      'Free-text search across name + notes/description + city + tags. ' + 'Pass "" to clear.',
+    ),
+  pinnedContactIds: z
+    .array(z.string().uuid())
+    .optional()
+    .describe(
+      'Ordered contact UUIDs to hoist to the top of the list. Use this ' +
+        'when the user asks for a CURATED short list — pin your top picks. ' +
+        'Pass [] to clear.',
+    ),
+  pinnedAssetIds: z
+    .array(z.string().uuid())
+    .optional()
+    .describe('Same as pinnedContactIds, for assets.'),
+  view: z
+    .enum(['contacts', 'both', 'assets'])
+    .optional()
+    .describe('Which sections of the right pane to show.'),
+});
+
+export function makeTools({ supabase, embedQuery, recorder, setPanelState }: MakeToolsOptions) {
   return {
     query_sql: toolWrap(
       'query_sql',
@@ -345,6 +446,90 @@ export function makeTools({ supabase, embedQuery, recorder }: MakeToolsOptions) 
           });
         }
         return data as { contacts: unknown; assets: unknown; debug: unknown };
+      },
+      { recorder },
+    ),
+
+    set_panel: toolWrap(
+      'set_panel',
+      'Drive the right-pane filter / sort / search / pinning / view in ' +
+        'lockstep with your textual answer. Examples:\n' +
+        ' - "Who do I know in Stockholm?" → contactFilter.cities=["Stockholm"]\n' +
+        ' - "People I should reach out to this week" → contactSort="warmth_asc" + contactFilter.updatedWithinDays=30\n' +
+        ' - "Who has a podcast studio?" → contactFilter.tags=["podcast","studio"] + view="contacts"\n' +
+        ' - "Show me only assets" → view="assets"\n' +
+        ' - "Best 3 people for a podcast launch" → after picking your top 3 contacts, ' +
+        '   pinnedContactIds=[id1,id2,id3] + contactSort="asset_count_desc"\n' +
+        ' - "Clear the filters" → call clear_panel instead of trying to zero each facet here.\n' +
+        'Rules: unspecified keys are preserved. To CLEAR a filter facet, pass [] ' +
+        '(empty array) or null where appropriate. Pinning OVERRIDES sort for the ' +
+        'pinned ids; the rest of the list follows the chosen sort. Always ' +
+        'narrate WHAT you applied in your reply.',
+      SetPanelSchema,
+      async (params) => {
+        if (!setPanelState) {
+          return toolError({
+            error: 'Right-pane control is not available in this context.',
+            hint: 'set_panel only works in the browser app, not in headless scripts.',
+            retriable: false,
+          });
+        }
+        const patch: Partial<PanelState> = {};
+        if (params.contactFilter)
+          patch.contactFilter = params.contactFilter as PanelState['contactFilter'];
+        if (params.assetFilter) patch.assetFilter = params.assetFilter as PanelState['assetFilter'];
+        if (params.contactSort) patch.contactSort = params.contactSort;
+        if (params.assetSort) patch.assetSort = params.assetSort;
+        if (params.search !== undefined) patch.search = params.search;
+        if (params.pinnedContactIds !== undefined) patch.pinnedContactIds = params.pinnedContactIds;
+        if (params.pinnedAssetIds !== undefined) patch.pinnedAssetIds = params.pinnedAssetIds;
+        if (params.view) patch.view = params.view;
+        setPanelState(patch);
+        return { applied: patch } as { applied: Partial<PanelState> };
+      },
+      { recorder },
+    ),
+
+    clear_panel: toolWrap(
+      'clear_panel',
+      'Wipe every filter / search / pin on the right pane (sort + view are ' +
+        'preserved). Use this when the user asks to "show everything" / ' +
+        '"clear filters" / "reset the view". Cheaper and clearer than ' +
+        'enumerating empty arrays in set_panel.',
+      z.object({}).describe('No parameters.'),
+      async () => {
+        if (!setPanelState) {
+          return toolError({
+            error: 'Right-pane control is not available in this context.',
+            hint: 'clear_panel only works in the browser app.',
+            retriable: false,
+          });
+        }
+        // Pass a sentinel that the browser-side handler interprets as
+        // "wipe everything". We piggyback on setPanelState by passing
+        // explicit empties for every facet that can have data.
+        setPanelState({
+          contactFilter: {
+            tags: [],
+            tagsAll: [],
+            cities: [],
+            warmth: [],
+            hasAssets: null,
+            updatedWithinDays: null,
+          },
+          assetFilter: {
+            tags: [],
+            tagsAll: [],
+            ownerIds: [],
+            hasOwner: null,
+            availabilityContains: '',
+            updatedWithinDays: null,
+          },
+          search: '',
+          pinnedContactIds: [],
+          pinnedAssetIds: [],
+        });
+        return { cleared: true };
       },
       { recorder },
     ),

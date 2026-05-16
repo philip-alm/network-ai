@@ -12,7 +12,7 @@ Email/password is the primary auth path. Google + Apple buttons render but are w
 
 ## Dependencies
 
-- `@network-ai/app/lib/supabase` — the auth client
+- `@reknowable/app/lib/supabase` — the auth client
 - `react`, `react-native`
 - `zod` — form validation
 

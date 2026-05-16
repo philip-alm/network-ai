@@ -57,12 +57,12 @@ export function ToolGroup({ calls }: { calls: AgentToolInvocation[] }) {
         {allDone ? verb : verb.replace(/ed$/, 'ing')}{' '}
         {queries.length > 0 ? (
           <>
-            <span className="text-fg/90">{summarizeQueries(queries)}</span>{' '}
+            <span className="text-fg">{summarizeQueries(queries)}</span>{' '}
           </>
         ) : null}
         <span className="mono text-faint">
           ·{' '}
-          <span className="text-fg/85">
+          <span className="text-fg">
             {calls.length} {calls.length === 1 ? 'call' : 'calls'}
           </span>
           {allDone ? (

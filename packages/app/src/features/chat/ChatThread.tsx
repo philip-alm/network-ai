@@ -1,11 +1,12 @@
 'use client';
 
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, UserPlus, Search, Compass } from 'lucide-react';
 import { MessageBubble, type ChatMessage } from './MessageBubble';
 import { ChatComposer } from './ChatComposer';
 import { useStickToBottom } from './useStickToBottom';
 import type { AgentPhase } from '../../lib/agent';
+import type { QueuedMessage } from './useAgentLoop';
 
 export type ChatThreadProps = {
   messages: ChatMessage[];
@@ -15,12 +16,27 @@ export type ChatThreadProps = {
   onStop?: () => void;
   phase?: AgentPhase;
   retryHint?: string | null;
+  /** Queue of messages waiting for the current turn to finish. */
+  queue?: QueuedMessage[];
+  onRemoveQueued?: (id: string) => void;
+  onPopQueueTail?: () => string | null;
+  onPushToQueue?: (text: string) => void;
 };
 
-const STARTER_PROMPTS = [
-  'Add Anna Svensson, warmth 2, hardware engineer in Göteborg',
-  'Who do I know in Stockholm?',
-  'What assets are available for a podcast event?',
+type StarterPrompt = {
+  verb: 'Add' | 'Find' | 'Ask';
+  Icon: typeof UserPlus;
+  text: string;
+};
+
+const STARTER_PROMPTS: StarterPrompt[] = [
+  {
+    verb: 'Add',
+    Icon: UserPlus,
+    text: 'Add Anna Svensson, warmth 2, hardware engineer in Göteborg',
+  },
+  { verb: 'Find', Icon: Search, text: 'Who do I know in Stockholm?' },
+  { verb: 'Ask', Icon: Compass, text: 'What assets are available for a podcast event?' },
 ];
 
 const PHASE_COPY: Record<AgentPhase, string> = {
@@ -40,6 +56,10 @@ export function ChatThread({
   onStop,
   phase,
   retryHint,
+  queue,
+  onRemoveQueued,
+  onPopQueueTail,
+  onPushToQueue,
 }: ChatThreadProps) {
   const { scrollerRef, contentRef, isAtBottom, scrollToBottom } = useStickToBottom();
 
@@ -48,12 +68,12 @@ export function ChatThread({
   const showPhasePill = isPending && phase && phase !== 'idle' && phase !== 'done';
 
   return (
-    <section
-      data-testid="chat-thread"
-      className="relative flex h-full min-h-0 flex-col border-r border-border-soft bg-bg"
-    >
+    <section data-testid="chat-thread" className="relative flex h-full min-h-0 flex-col">
       <div ref={scrollerRef} className="flex-1 min-h-0 overflow-y-auto">
-        <div ref={contentRef} className="mx-auto max-w-2xl space-y-5 px-6 py-8">
+        <div
+          ref={contentRef}
+          className="mx-auto max-w-2xl space-y-5 pl-2 pr-1 py-6 sm:pl-3 sm:pr-1.5"
+        >
           {messages.length === 0 && !isPending ? (
             <EmptyState onPick={onSubmit} />
           ) : (
@@ -74,31 +94,46 @@ export function ChatThread({
                     data-testid="chat-phase"
                   >
                     <PendingDots />
-                    <span className="mono">{PHASE_COPY[phase!]}</span>
+                    <span className="font-mono tracking-tight">{PHASE_COPY[phase!]}</span>
                   </motion.div>
                 ) : null}
               </AnimatePresence>
 
-              {retryHint ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-fg/80"
-                  data-testid="chat-retry-hint"
-                >
-                  {retryHint}
-                </motion.div>
-              ) : null}
+              <AnimatePresence>
+                {retryHint ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
+                    className="flex items-center gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-muted"
+                    data-testid="chat-retry-hint"
+                    role="status"
+                  >
+                    <span className="relative inline-flex h-1.5 w-1.5 shrink-0" aria-hidden>
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-warning opacity-60" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-warning" />
+                    </span>
+                    {retryHint}
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
 
-              {error ? (
-                <div
-                  className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
-                  data-testid="chat-error"
-                  role="alert"
-                >
-                  {error}
-                </div>
-              ) : null}
+              <AnimatePresence>
+                {error ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
+                    className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger"
+                    data-testid="chat-error"
+                    role="alert"
+                  >
+                    {error}
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
             </>
           )}
         </div>
@@ -110,48 +145,72 @@ export function ChatThread({
             key="scroll-bottom"
             type="button"
             onClick={scrollToBottom}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
-            transition={{ duration: 0.18, ease: [0.25, 1, 0.5, 1] }}
-            className="absolute bottom-[88px] left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-fg px-3 py-1.5 text-xs text-bg shadow-lift transition-transform hover:-translate-x-1/2 hover:-translate-y-0.5"
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+            className="group absolute bottom-[96px] left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-xs text-fg shadow-lift transition-all duration-[160ms] hover:bg-fg hover:text-bg focus-visible:bg-fg focus-visible:text-bg active:scale-[0.95]"
+            style={{
+              transitionTimingFunction: 'var(--ease-out)',
+              WebkitTapHighlightColor: 'transparent',
+            }}
             data-testid="scroll-to-bottom"
             aria-label="Scroll to bottom"
           >
-            <ArrowDown size={12} aria-hidden />
-            <span>New activity</span>
+            <ArrowDown size={11} aria-hidden />
+            <span>New</span>
           </motion.button>
         ) : null}
       </AnimatePresence>
 
-      <ChatComposer onSubmit={onSubmit} onStop={onStop} isPending={isPending} />
+      <ChatComposer
+        onSubmit={onSubmit}
+        onStop={onStop}
+        isPending={isPending}
+        queue={queue}
+        onRemoveQueued={onRemoveQueued}
+        onPopQueueTail={onPopQueueTail}
+        onPushToQueue={onPushToQueue}
+      />
     </section>
   );
 }
 
 function EmptyState({ onPick }: { onPick: (text: string) => void | Promise<void> }) {
   return (
-    <div className="mt-10 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tighter text-fg">
-          Your network, kept where it counts.
+    <div className="mt-8 space-y-10 animate-fade-in">
+      <div className="space-y-4">
+        <h1 className="text-[2rem] font-medium leading-[1.08] tracking-[-0.028em]">
+          <span className="text-fg">Add anyone you know.</span>{' '}
+          <span className="text-muted">I'll remember everything that matters.</span>
         </h1>
-        <p className="mt-2 text-base text-muted">
-          Tell me about someone you know, ask about assets, or query freely. I'll keep everything
-          organized on the right.
+        <p className="max-w-[52ch] text-[15px] leading-relaxed text-muted">
+          Just tell me about a contact, a city, or what they do. Ask anything later — I'll surface
+          the right person.
         </p>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {STARTER_PROMPTS.map((p) => (
           <button
-            key={p}
+            key={p.text}
             type="button"
-            onClick={() => onPick(p)}
+            onClick={() => onPick(p.text)}
             data-testid="starter-prompt"
-            className="group flex w-full items-center justify-between rounded-md bg-surface-soft px-3.5 py-2.5 text-left text-sm text-fg/85 transition-colors hover:bg-bg hover:shadow-hairline"
+            className="group flex w-full items-center gap-2.5 rounded-md border border-border-soft bg-surface-soft/40 px-3 py-2.5 text-left text-[13px] text-muted transition-all duration-[160ms] hover:border-accent/40 hover:bg-surface-soft hover:text-fg focus-visible:border-accent/40 focus-visible:bg-surface-soft focus-visible:text-fg active:scale-[0.99]"
+            style={{
+              transitionTimingFunction: 'var(--ease-out)',
+              WebkitTapHighlightColor: 'transparent',
+            }}
           >
-            <span>{p}</span>
-            <span className="text-faint transition-colors group-hover:text-accent">↵</span>
+            <p.Icon
+              size={13}
+              aria-hidden
+              className="shrink-0 text-faint transition-colors duration-[160ms] group-hover:text-accent"
+            />
+            <span className="min-w-0 flex-1 truncate">{p.text}</span>
+            <span className="font-mono text-xs text-faint opacity-0 transition-opacity duration-[160ms] group-hover:opacity-100">
+              ↵
+            </span>
           </button>
         ))}
       </div>

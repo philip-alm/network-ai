@@ -11,42 +11,234 @@
     --font-mono:
       var(--font-geist-mono), ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 
-    /* — Color tokens (light only) — */
-    /* Backgrounds + surfaces — warm off-white, never pure white. */
-    --color-bg: oklch(99% 0 0);
-    --color-surface: oklch(98% 0 0);
-    --color-surface-soft: oklch(96.5% 0.003 60);
+    /* — Easing curves (Emil's strong custom curves) — */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
-    /* Foreground + muted variants. */
-    --color-fg: oklch(15% 0 0);
-    --color-muted: oklch(48% 0 0);
-    --color-faint: oklch(68% 0 0);
+    /* ─────────────────────────────────────────────────────────────
+       LIGHT theme (default) — Operator Light.
+       Cool slate near-monochrome, single muted violet accent.
+       ───────────────────────────────────────────────────────────── */
+    --color-bg: #FAFAFB;
+    --color-surface: #F4F4F6;
+    --color-surface-soft: #ECECEF;
+    --color-fg: #15171C;
+    --color-muted: #5F616B;
+    --color-faint: #9A9CA5;
+    --color-border: #E5E5E9;
+    --color-border-soft: #EDEDF0;
+    --color-accent: #5D60D3;
+    --color-accent-soft: #EBEBFB;
 
-    /* Borders — hairline, two strengths. */
-    --color-border: oklch(91% 0 0);
-    --color-border-soft: oklch(95% 0 0);
+    --color-danger: #DC4438;
+    --color-warning: #C68A2C;
 
-    /* Accent — deep emerald. Used sparingly: warmth-1, AI-action confirmation,
-       focus rings, the in-flight cursor. */
-    --color-accent: oklch(50% 0.13 155);
-    --color-accent-soft: oklch(94% 0.04 155);
+    /* RGB-channel mirrors. Required so Tailwind's `border-X/Y` and
+       `bg-X/Y` opacity modifiers compose correctly — without these
+       the modifier silently fails and the border falls back to
+       currentColor (= white-ish on dark themes). */
+    --color-bg-rgb: 250 250 251;
+    --color-surface-rgb: 244 244 246;
+    --color-surface-soft-rgb: 236 236 239;
+    --color-fg-rgb: 21 23 28;
+    --color-muted-rgb: 95 97 107;
+    --color-faint-rgb: 154 156 165;
+    --color-border-rgb: 229 229 233;
+    --color-border-soft-rgb: 237 237 240;
+    --color-accent-rgb: 93 96 211;
+    --color-accent-soft-rgb: 235 235 251;
+    --color-danger-rgb: 220 68 56;
+    --color-warning-rgb: 198 138 44;
 
-    /* Status colors. */
-    --color-danger: oklch(52% 0.18 25);
-    --color-warning: oklch(70% 0.13 70);
+    /* Warmth ramp: 5 = warmest (anchors at accent); 1 = most distant (cool slate). */
+    --color-warmth-1: #B0B4C2;
+    --color-warmth-2: #B499B2;
+    --color-warmth-3: #9A82C2;
+    --color-warmth-4: #7A6FCE;
+    --color-warmth-5: #5D60D3;
 
-    /* Warmth dot ramp — green → amber → neutral. */
-    --color-warmth-1: oklch(55% 0.13 155);
-    --color-warmth-2: oklch(70% 0.13 145);
-    --color-warmth-3: oklch(78% 0.14 85);
-    --color-warmth-4: oklch(82% 0.10 60);
-    --color-warmth-5: oklch(72% 0 0);
+    /* Tag palette — wisely chosen colors for category tags. */
+    --color-tag-neutral-bg: #ECECEF;
+    --color-tag-neutral-fg: #5F616B;
+    --color-tag-brand-bg: #EBEBFB;
+    --color-tag-brand-fg: #4F52C7;
+    --color-tag-blue-bg: #E5EEFC;
+    --color-tag-blue-fg: #1F58BD;
+    --color-tag-green-bg: #E2EFE6;
+    --color-tag-green-fg: #1F6A3D;
+    --color-tag-amber-bg: #F4EAD3;
+    --color-tag-amber-fg: #7B5510;
+
+    color-scheme: light;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     DARK theme — Operator Dark. Same direction, dark slate.
+     ───────────────────────────────────────────────────────────── */
+  [data-theme='dark'] {
+    --color-bg: #0E0F12;
+    --color-surface: #16171B;
+    --color-surface-soft: #1B1C22;
+    --color-fg: #E8E9EE;
+    --color-muted: #8B8C95;
+    --color-faint: #5E5F68;
+    --color-border: #23252B;
+    --color-border-soft: #1D1E24;
+    --color-accent: #8B8EFE;
+    --color-accent-soft: #22243A;
+
+    --color-danger: #E8675D;
+    --color-warning: #D6A53C;
+
+    /* RGB-channel mirrors — see comment in light theme. */
+    --color-bg-rgb: 14 15 18;
+    --color-surface-rgb: 22 23 27;
+    --color-surface-soft-rgb: 27 28 34;
+    --color-fg-rgb: 232 233 238;
+    --color-muted-rgb: 139 140 149;
+    --color-faint-rgb: 94 95 104;
+    --color-border-rgb: 35 37 43;
+    --color-border-soft-rgb: 29 30 36;
+    --color-accent-rgb: 139 142 254;
+    --color-accent-soft-rgb: 34 36 58;
+    --color-danger-rgb: 232 103 93;
+    --color-warning-rgb: 214 165 60;
+
+    --color-warmth-1: #6F727F;
+    --color-warmth-2: #B5A4CB;
+    --color-warmth-3: #A998D8;
+    --color-warmth-4: #9A93EE;
+    --color-warmth-5: #8B8EFE;
+
+    --color-tag-neutral-bg: #1B1C22;
+    --color-tag-neutral-fg: #A0A1AB;
+    --color-tag-brand-bg: #22243A;
+    --color-tag-brand-fg: #B0B2FF;
+    --color-tag-blue-bg: #16273D;
+    --color-tag-blue-fg: #7FB1F5;
+    --color-tag-green-bg: #16271F;
+    --color-tag-green-fg: #7DC79A;
+    --color-tag-amber-bg: #2A2316;
+    --color-tag-amber-fg: #D4A857;
+
+    color-scheme: dark;
+  }
+
+  /* System-preference fallback when no explicit `data-theme` is set. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      --color-bg: #0E0F12;
+      --color-surface: #16171B;
+      --color-surface-soft: #1B1C22;
+      --color-fg: #E8E9EE;
+      --color-muted: #8B8C95;
+      --color-faint: #5E5F68;
+      --color-border: #23252B;
+      --color-border-soft: #1D1E24;
+      --color-accent: #8B8EFE;
+      --color-accent-soft: #22243A;
+      --color-danger: #E8675D;
+      --color-warning: #D6A53C;
+
+      --color-bg-rgb: 14 15 18;
+      --color-surface-rgb: 22 23 27;
+      --color-surface-soft-rgb: 27 28 34;
+      --color-fg-rgb: 232 233 238;
+      --color-muted-rgb: 139 140 149;
+      --color-faint-rgb: 94 95 104;
+      --color-border-rgb: 35 37 43;
+      --color-border-soft-rgb: 29 30 36;
+      --color-accent-rgb: 139 142 254;
+      --color-accent-soft-rgb: 34 36 58;
+      --color-danger-rgb: 232 103 93;
+      --color-warning-rgb: 214 165 60;
+      --color-warmth-1: #6F727F;
+      --color-warmth-2: #B5A4CB;
+      --color-warmth-3: #A998D8;
+      --color-warmth-4: #9A93EE;
+      --color-warmth-5: #8B8EFE;
+      --color-tag-neutral-bg: #1B1C22;
+      --color-tag-neutral-fg: #A0A1AB;
+      --color-tag-brand-bg: #22243A;
+      --color-tag-brand-fg: #B0B2FF;
+      --color-tag-blue-bg: #16273D;
+      --color-tag-blue-fg: #7FB1F5;
+      --color-tag-green-bg: #16271F;
+      --color-tag-green-fg: #7DC79A;
+      --color-tag-amber-bg: #2A2316;
+      --color-tag-amber-fg: #D4A857;
+      color-scheme: dark;
+    }
+  }
+
+  /* Skeleton + pulse keyframes used by the network pane loading
+     experience. Opacity-only so the GPU compositor does the work and
+     they don't trigger layout. */
+  @keyframes reknowable-skeleton {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 0.95; }
+  }
+  @keyframes reknowable-pulse {
+    0%, 100% { opacity: 0.35; transform: scale(1); }
+    50%      { opacity: 1;     transform: scale(1.25); }
+  }
+  @keyframes reknowable-tint {
+    0%   { box-shadow: inset 0 0 0 1px var(--color-accent); }
+    100% { box-shadow: inset 0 0 0 1px transparent; }
+  }
+  /* Progress ring: the dasharray animates from full-offset (empty) to
+     zero-offset (full) then snaps back. Combined with a slow rotation
+     (separate keyframe below), the arc reads as "filling in" rather
+     than a uniform spinner. */
+  @keyframes reknowable-ring-sweep {
+    0%   { stroke-dashoffset: var(--ring-circ, 32.99); }
+    60%  { stroke-dashoffset: 4; }
+    100% { stroke-dashoffset: var(--ring-circ, 32.99); }
+  }
+  @keyframes reknowable-ring-spin {
+    from { transform: rotate(-90deg); }
+    to   { transform: rotate(270deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [style*='reknowable-skeleton'],
+    [style*='reknowable-pulse'],
+    [style*='reknowable-tint'] {
+      animation: none !important;
+    }
+  }
+
+  /* Custom scrollbar — quiet, theme-aware. */
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 9999px;
+    border: 2px solid var(--color-bg);
+    transition: background-color 160ms var(--ease-out);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-muted);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border) transparent;
   }
 
   html,
   body {
     height: 100%;
-    overflow: hidden; /* page never grows — panes own their own scroll */
+  }
+
+  /* Lock body scroll only when the home shell is mounted. Other pages
+     scroll naturally. */
+  body.app-shell-locked {
+    overflow: hidden;
   }
 
   body {
@@ -57,23 +249,60 @@
     font-synthesis: none;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    letter-spacing: -0.011em;
+    letter-spacing: -0.005em;
+    /* Smooth theme swap. Skipped under prefers-reduced-motion. */
+    transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out);
   }
 
-  /* Selection — uses accent-soft so it never feels jarring. */
   ::selection {
     background: var(--color-accent-soft);
     color: var(--color-fg);
   }
 
-  /* Focus rings — accent, with a 2px offset against the bg. */
+  /* Focus rings — accent, with offset. Do NOT change border-radius on
+     the focused element (was hijacking rounded-full buttons and pill
+     inputs). Do NOT animate via keyframe (the outline animation felt
+     janky on every interaction). The base CSS outline + outline-offset
+     is enough. */
   *:focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
-    border-radius: 6px;
   }
 
-  /* Honor reduced motion — disable nontrivial animations. */
+  /* Interactive-surface ergonomics. Three rules that together solve the
+     "I can hover the padding but not the icon/text inside" paper cut:
+       1. cursor: pointer on every interactive surface (Tailwind preflight
+          no longer covers role=button or label-wrapped inputs reliably).
+       2. user-select: none on button content so a click-drag doesn't
+          start a text selection on the label.
+       3. pointer-events: none on EVERY descendant svg of an interactive
+          surface (descendant selector, not direct child — catches icons
+          wrapped in span / motion.div / tooltip portals).
+     Inputs and textareas stay native (text caret, selectable text). */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  label:has(> input:not([type='text']):not([type='email']):not([type='password']):not([type='search']):not([type='url']):not([type='tel']):not([type='number'])),
+  summary {
+    cursor: pointer;
+  }
+
+  button,
+  [role='button'] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  button svg,
+  a svg,
+  label svg,
+  summary svg,
+  [role='button'] svg,
+  [role='tab'] svg,
+  [role='menuitem'] svg,
+  svg[aria-hidden='true'] {
+    pointer-events: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     ::before,
@@ -85,26 +314,22 @@
 }
 
 @layer components {
-  /* Generic hairline divider. */
   .hairline {
     border-color: var(--color-border-soft);
   }
 
-  /* Card surface — almost-flat, hairline-ringed. */
   .card {
     background: var(--color-surface);
     box-shadow: inset 0 0 0 1px var(--color-border-soft);
-    border-radius: var(--radius-lg, 10px);
+    border-radius: 10px;
   }
 
-  /* Inline-monospaced strings (IDs, timings). */
   .mono {
     font-family: var(--font-mono);
     font-feature-settings: 'ss01';
     letter-spacing: -0.01em;
   }
 
-  /* Streaming cursor — quietly blinks at the end of the in-flight bubble. */
   .cursor {
     display: inline-block;
     width: 0.5ch;

@@ -1,8 +1,8 @@
-# @network-ai/ui
+# @reknowable/ui
 
 Leaf UI components: `Button`, `Input`, `Accordion`, `Card`, `Dot`, `WarmthIndicator`. Renders identically on web and native via NativeWind. No state, no business logic, no data fetching — just presentation.
 
-If a component needs state or a data hook, it belongs in `@network-ai/app/features/`, not here.
+If a component needs state or a data hook, it belongs in `@reknowable/app/features/`, not here.
 
 ## Public API
 
@@ -17,8 +17,8 @@ Exported from `src/index.ts`. Components will be added in Phase 6.
 
 ## What's banned in this package
 
-- State that outlives a render (use `@network-ai/app`)
-- Data fetching (use `@network-ai/app/lib/supabase`)
+- State that outlives a render (use `@reknowable/app`)
+- Data fetching (use `@reknowable/app/lib/supabase`)
 - Platform-specific imports (use NativeWind classes only)
 - `useState` for anything outside ephemeral UI state (focus, hover) — controlled components only
 
@@ -28,8 +28,8 @@ Every component has a render test + an interaction test (where applicable). Snap
 
 ### How Claude verifies this module
 
-1. `pnpm -F @network-ai/ui test` — green
-2. `pnpm -F @network-ai/ui check` — green
+1. `pnpm -F @reknowable/ui test` — green
+2. `pnpm -F @reknowable/ui check` — green
 
 ## Non-goals
 

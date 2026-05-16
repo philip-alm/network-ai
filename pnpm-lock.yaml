@@ -35,13 +35,13 @@ importers:
 
   apps/native:
     dependencies:
-      '@network-ai/app':
+      '@reknowable/app':
         specifier: workspace:*
         version: link:../../packages/app
-      '@network-ai/types':
+      '@reknowable/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@network-ai/ui':
+      '@reknowable/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@supabase/supabase-js':
@@ -96,13 +96,13 @@ importers:
 
   apps/web:
     dependencies:
-      '@network-ai/app':
+      '@reknowable/app':
         specifier: workspace:*
         version: link:../../packages/app
-      '@network-ai/types':
+      '@reknowable/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@network-ai/ui':
+      '@reknowable/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@supabase/ssr':
@@ -175,10 +175,10 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: 1.0.39
         version: 1.0.39(zod@3.25.76)
-      '@network-ai/types':
+      '@reknowable/types':
         specifier: workspace:*
         version: link:../types
-      '@network-ai/ui':
+      '@reknowable/ui':
         specifier: workspace:*
         version: link:../ui
       '@supabase/ssr':
@@ -187,9 +187,15 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.50.0
         version: 2.105.4
+      '@tanstack/react-virtual':
+        specifier: ^3.13.24
+        version: 3.13.24(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       ai:
         specifier: 5.0.188
         version: 5.0.188(zod@3.25.76)
+      idb:
+        specifier: ^8.0.3
+        version: 8.0.3
       lucide-react:
         specifier: ^0.469.0
         version: 0.469.0(react@18.3.1)
@@ -215,7 +221,7 @@ importers:
         specifier: ^5.0.13
         version: 5.0.13(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
     devDependencies:
-      '@network-ai/test-utils':
+      '@reknowable/test-utils':
         specifier: workspace:*
         version: link:../test-utils
       '@testing-library/react':
@@ -224,9 +230,15 @@ importers:
       '@types/react':
         specifier: ^18.3.18
         version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.7
+        version: 18.3.7(@types/react@18.3.28)
       '@types/react-native':
         specifier: ^0.73.0
         version: 0.73.0(@babel/core@7.29.0)(@babel/preset-env@7.29.5(@babel/core@7.29.0))(@types/react@18.3.28)(react@18.3.1)
+      fake-indexeddb:
+        specifier: ^6.2.5
+        version: 6.2.5
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
@@ -242,7 +254,7 @@ importers:
 
   packages/test-utils:
     dependencies:
-      '@network-ai/types':
+      '@reknowable/types':
         specifier: workspace:*
         version: link:../types
       '@supabase/supabase-js':
@@ -286,10 +298,10 @@ importers:
 
   supabase/tests:
     dependencies:
-      '@network-ai/test-utils':
+      '@reknowable/test-utils':
         specifier: workspace:*
         version: link:../../packages/test-utils
-      '@network-ai/types':
+      '@reknowable/types':
         specifier: workspace:*
         version: link:../../packages/types
       '@supabase/supabase-js':
@@ -2254,6 +2266,15 @@ packages:
     peerDependencies:
       tailwindcss: '>=3.0.0 || insiders || >=4.0.0-alpha.20 || >=4.0.0-beta.1'
 
+  '@tanstack/react-virtual@3.13.24':
+    resolution: {integrity: sha512-aIJvz5OSkhNIhZIpYivrxrPTKYsjW9Uzy+sP/mx0S3sev2HyvPb7xmjbYvokzEpfgYHy/HjzJ2zFAETuUfgCpg==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@tanstack/virtual-core@3.14.0':
+    resolution: {integrity: sha512-JLANqGy/D6k4Ujmh8Tr25lGimuOXNiaVyXaCAZS0W+1390sADdGnyUdSWNIfd49gebtIxGMij4IktRVzrdr12Q==}
+
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
     engines: {node: '>=18'}
@@ -3698,6 +3719,10 @@ packages:
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
 
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
+
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
 
@@ -4038,6 +4063,9 @@ packages:
   iconv-lite@0.6.3:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
     engines: {node: '>=0.10.0'}
+
+  idb@8.0.3:
+    resolution: {integrity: sha512-LtwtVyVYO5BqRvcsKuB2iUMnHwPVByPCXFXOpuU96IZPPoPN6xjOGxZQ74pgSVVLQWtUOYgyeL4GE98BY5D3wg==}
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -8798,6 +8826,14 @@ snapshots:
       postcss-selector-parser: 6.0.10
       tailwindcss: 3.4.19(tsx@4.22.0)(yaml@2.9.0)
 
+  '@tanstack/react-virtual@3.13.24(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@tanstack/virtual-core': 3.14.0
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
+  '@tanstack/virtual-core@3.14.0': {}
+
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.29.0
@@ -10509,6 +10545,8 @@ snapshots:
 
   extend@3.0.2: {}
 
+  fake-indexeddb@6.2.5: {}
+
   fast-deep-equal@3.1.3: {}
 
   fast-glob@3.3.1:
@@ -10861,6 +10899,8 @@ snapshots:
   iconv-lite@0.6.3:
     dependencies:
       safer-buffer: 2.1.2
+
+  idb@8.0.3: {}
 
   ieee754@1.2.1: {}
 

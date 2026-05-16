@@ -9,7 +9,7 @@ Sequential SQL migrations. Each file is named `NNNN_<slug>.sql` (zero-padded so 
 3. Add tests to `supabase/tests/` covering the new objects (RLS works, RPCs return correct shapes)
 4. Run locally: `supabase db reset` (drops + reapplies all migrations), then `pnpm db:test`
 5. Apply to remote: `supabase db push`
-6. Regenerate types: `pnpm -F @network-ai/types generate`
+6. Regenerate types: `pnpm -F @reknowable/types generate`
 
 ## What's banned
 

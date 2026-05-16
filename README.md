@@ -1,16 +1,31 @@
-# network-ai
+# Reknowable
 
-Personal network mapper with an AI agent. Map every person you know, rate their "warmth" 1–5, attach assets (their podcast studio, your 200k SEK in a convertible, etc.), and ask in natural language: _"What assets do we have for a hackathon in Göteborg?"_
+A second brain for everyone in your network and everything they can offer.
+
+When an idea comes up in a meeting, Reknowable lets you instantly recall:
+_who I know that could help_, _what asset fits this_, _how warm that
+relationship is_, _how to reach them_. Built for operators and founders
+whose network has grown past what fits in working memory. Single-user
+today; designed for shared organizational memory tomorrow.
 
 ## Stack
 
 - **Monorepo**: pnpm + Turborepo
 - **Web**: Next.js 15 App Router on Vercel
-- **Native**: Expo SDK 54 (iOS + Android, dev-build) — fully scaffolded; store publishing is a separate step
-- **Shared**: `@network-ai/app` package consumed by both shells
+- **Native**: Expo SDK 54 (iOS + Android, dev-build) — scaffolded
+- **Shared**: `@reknowable/app` package consumed by both shells
 - **Backend**: Supabase (Postgres + RLS + pgvector + pgmq + pg_cron + Edge Functions)
 - **LLM + embeddings**: OpenRouter (single API key)
 - **Agent loop**: Vercel AI SDK 5, client-orchestrated
+
+## Documentation
+
+- **[PRODUCT.md](./PRODUCT.md)** — strategic anchor: users, purpose, brand personality, anti-references, design principles.
+- **[DESIGN.md](./DESIGN.md)** — visual system: Operator's Study palette, typography, motion + icon vocabulary, components, signature moments.
+- **[BRAND.md](./BRAND.md)** — voice spec: how the agent talks, copy patterns, the agent's system-prompt persona.
+- **[CLAUDE.md](./CLAUDE.md)** — engineering ruleset: testing discipline, banned patterns, debug artifacts, ship triggers.
+
+Every module has its own `CLAUDE.md` extending the root.
 
 ## Quick start
 
@@ -26,16 +41,14 @@ pnpm dev:native     # Metro for Expo dev build
 pnpm verify:all     # every phase's verification in sequence
 ```
 
-See `CLAUDE.md` for the full ruleset (testing discipline, banned patterns, debug artifacts, autonomous-debug tooling). Every module has its own `CLAUDE.md`.
-
 ## Folder shape
 
 ```
 apps/
-  web/                 Next.js shell
-  native/              Expo shell
+  web/                 Next.js shell (the deployed surface)
+  native/              Expo shell (scaffolded)
 packages/
-  app/                 shared screens + agent loop (the heart)
+  app/                 shared screens, agent loop, brand wordmark (the heart)
   ui/                  leaf UI components
   types/               generated DB types
   test-utils/          test harnesses

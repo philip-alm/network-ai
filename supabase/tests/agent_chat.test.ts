@@ -13,7 +13,7 @@ import {
   STREAM_RESPONSE_HEADERS,
 } from '../functions/agent-chat/core';
 
-const OPTS = { openrouterKey: 'test-key', referer: 'https://network-ai.app', title: 'network-ai' };
+const OPTS = { openrouterKey: 'test-key', referer: 'https://reknowable.app', title: 'reknowable' };
 
 describe('agent-chat / buildUpstreamRequest', () => {
   it('targets the OpenRouter chat completions endpoint', () => {
@@ -40,8 +40,8 @@ describe('agent-chat / buildUpstreamRequest', () => {
     const h = init.headers as Record<string, string>;
     expect(h.Authorization).toBe('Bearer test-key');
     expect(h['Content-Type']).toBe('application/json');
-    expect(h['HTTP-Referer']).toBe('https://network-ai.app');
-    expect(h['X-Title']).toBe('network-ai');
+    expect(h['HTTP-Referer']).toBe('https://reknowable.app');
+    expect(h['X-Title']).toBe('reknowable');
   });
 
   it('passes through tools + temperature + arbitrary fields', () => {

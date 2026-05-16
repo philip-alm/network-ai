@@ -18,7 +18,7 @@ import { MentionPill } from './MentionPill';
  */
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
-    <div className="space-y-3 text-base leading-relaxed tracking-tight text-fg/90">
+    <div className="space-y-3 text-sm leading-relaxed tracking-tight text-fg">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={MD_COMPONENTS}
@@ -63,7 +63,9 @@ const MD_COMPONENTS: Components = {
     <h3 className="text-sm font-semibold tracking-tight text-fg">{children}</h3>
   ),
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-border-soft pl-3 text-muted">{children}</blockquote>
+    <blockquote className="rounded-md bg-surface-soft px-3 py-2 text-muted shadow-hairline-soft">
+      {children}
+    </blockquote>
   ),
   hr: () => <hr className="border-border-soft" />,
   a: ({ href, children }) => {
@@ -119,6 +121,6 @@ const MD_COMPONENTS: Components = {
     </th>
   ),
   td: ({ children }) => (
-    <td className="border-b border-border-soft px-2 py-1 text-fg/85">{children}</td>
+    <td className="border-b border-border-soft px-2 py-1 text-fg">{children}</td>
   ),
 };

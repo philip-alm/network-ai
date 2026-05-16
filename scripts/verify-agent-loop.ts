@@ -21,8 +21,8 @@ import { join } from 'node:path';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { runAgentTurn, MODEL_ID, type AgentMessage, type EmbedQueryFn } from '@network-ai/app';
-import { createNodeDebugRecorder } from '@network-ai/app/lib/agent/nodeDebugRecorder';
+import { runAgentTurn, MODEL_ID, type AgentMessage, type EmbedQueryFn } from '@reknowable/app';
+import { createNodeDebugRecorder } from '@reknowable/app/lib/agent/nodeDebugRecorder';
 import { processOneBatch, type EmbedFn } from '../supabase/functions/embed-batch/core';
 
 const ROOT = join(import.meta.dirname ?? __dirname, '..');
@@ -97,8 +97,8 @@ async function main(): Promise<void> {
     baseURL: 'https://openrouter.ai/api/v1',
     headers: {
       Authorization: `Bearer ${OPENROUTER_KEY}`,
-      'HTTP-Referer': 'https://network-ai.app',
-      'X-Title': 'network-ai',
+      'HTTP-Referer': 'https://reknowable.app',
+      'X-Title': 'reknowable',
     },
   });
   const model = openrouter(MODEL_ID);

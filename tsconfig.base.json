@@ -22,14 +22,14 @@
     "skipLibCheck": true,
     "incremental": true,
     "paths": {
-      "@network-ai/app": ["./packages/app/src/index.ts"],
-      "@network-ai/app/*": ["./packages/app/src/*"],
-      "@network-ai/ui": ["./packages/ui/src/index.ts"],
-      "@network-ai/ui/*": ["./packages/ui/src/*"],
-      "@network-ai/types": ["./packages/types/src/index.ts"],
-      "@network-ai/types/*": ["./packages/types/src/*"],
-      "@network-ai/test-utils": ["./packages/test-utils/src/index.ts"],
-      "@network-ai/test-utils/*": ["./packages/test-utils/src/*"]
+      "@reknowable/app": ["./packages/app/src/index.ts"],
+      "@reknowable/app/*": ["./packages/app/src/*"],
+      "@reknowable/ui": ["./packages/ui/src/index.ts"],
+      "@reknowable/ui/*": ["./packages/ui/src/*"],
+      "@reknowable/types": ["./packages/types/src/index.ts"],
+      "@reknowable/types/*": ["./packages/types/src/*"],
+      "@reknowable/test-utils": ["./packages/test-utils/src/index.ts"],
+      "@reknowable/test-utils/*": ["./packages/test-utils/src/*"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next", ".expo"]

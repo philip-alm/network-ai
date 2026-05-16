@@ -1,5 +1,5 @@
 {
-  "name": "@network-ai/native",
+  "name": "@reknowable/native",
   "version": "0.0.0",
   "private": true,
   "main": "expo-router/entry",
@@ -15,9 +15,9 @@
     "prebuild": "expo prebuild --clean"
   },
   "dependencies": {
-    "@network-ai/app": "workspace:*",
-    "@network-ai/ui": "workspace:*",
-    "@network-ai/types": "workspace:*",
+    "@reknowable/app": "workspace:*",
+    "@reknowable/ui": "workspace:*",
+    "@reknowable/types": "workspace:*",
     "@supabase/supabase-js": "^2.50.0",
     "expo": "~54.0.0",
     "expo-constants": "~17.0.0",

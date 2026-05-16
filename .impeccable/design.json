@@ -1,0 +1,424 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-16T00:00:00.000Z",
+  "title": "Design System: Reknowable",
+  "extensions": {
+    "colorMeta": {
+      "bg": {
+        "role": "neutral",
+        "displayName": "Navy",
+        "canonical": "#0D1729",
+        "tonalRamp": [
+          "#070D1A",
+          "#0D1729",
+          "#142039",
+          "#1C2A4A",
+          "#2A3D66",
+          "#445A86",
+          "#7A8BAC",
+          "#B0BAD0"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface Navy",
+        "canonical": "oklch(20% 0.045 260)"
+      },
+      "surface-soft": {
+        "role": "neutral",
+        "displayName": "Warm Graphite",
+        "canonical": "#242324"
+      },
+      "fg": {
+        "role": "neutral",
+        "displayName": "Cream",
+        "canonical": "#F4F5F1",
+        "tonalRamp": [
+          "#1E1F1B",
+          "#3A3B36",
+          "#56574F",
+          "#73746A",
+          "#9C9D90",
+          "#C3C4B7",
+          "#E0E1D8",
+          "#F4F5F1"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Warm Grey",
+        "canonical": "#A5A29D"
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Faint Cream",
+        "canonical": "oklch(50% 0.008 90)"
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "oklch(28% 0.040 260)"
+      },
+      "border-soft": {
+        "role": "neutral",
+        "displayName": "Hairline Soft",
+        "canonical": "oklch(24% 0.040 260)"
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Brand Amber",
+        "canonical": "#CD9B5B",
+        "tonalRamp": [
+          "#3D2D17",
+          "#5C4421",
+          "#7A5B2D",
+          "#977339",
+          "#B58A48",
+          "#CD9B5B",
+          "#DEB47F",
+          "#EDD3B3"
+        ]
+      },
+      "accent-soft": {
+        "role": "primary",
+        "displayName": "Amber Wash",
+        "canonical": "oklch(30% 0.060 75)"
+      },
+      "danger": {
+        "role": "status",
+        "displayName": "Danger",
+        "canonical": "oklch(68% 0.20 25)"
+      },
+      "warning": {
+        "role": "status",
+        "displayName": "Warning",
+        "canonical": "oklch(78% 0.14 80)"
+      },
+      "warmth-1": {
+        "role": "ramp",
+        "displayName": "Warmth 1 (Brand Amber)",
+        "canonical": "#CD9B5B"
+      },
+      "warmth-2": {
+        "role": "ramp",
+        "displayName": "Warmth 2 (Ember)",
+        "canonical": "oklch(76% 0.12 50)"
+      },
+      "warmth-3": {
+        "role": "ramp",
+        "displayName": "Warmth 3 (Rose Amber)",
+        "canonical": "oklch(80% 0.10 30)"
+      },
+      "warmth-4": {
+        "role": "ramp",
+        "displayName": "Warmth 4 (Dusty Pink)",
+        "canonical": "oklch(82% 0.08 350)"
+      },
+      "warmth-5": {
+        "role": "ramp",
+        "displayName": "Warmth 5 (Navy Slate)",
+        "canonical": "oklch(70% 0.04 260)"
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Top-of-screen surfaces. Rare." },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Sub-section headings; auth screen titles."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Contact name in a row, card title, dialog title."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All running text, chat bubbles, notes. Capped 65–75ch."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase section headers and kbd hints. 0.04em tracking."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The brand mark. Lowercase, leading Brand Amber dot. Use <Wordmark/>."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "IDs, timings, asset counts, kbd content. Never decorative."
+      }
+    },
+    "shadows": [
+      {
+        "name": "hairline",
+        "value": "inset 0 0 0 1px var(--color-border)",
+        "purpose": "Standard surface ring on cards."
+      },
+      {
+        "name": "hairline-soft",
+        "value": "inset 0 0 0 1px var(--color-border-soft)",
+        "purpose": "Lighter ring on the composer well, chips, kbd."
+      },
+      {
+        "name": "lift",
+        "value": "0 0 0 1px var(--color-border), 0 8px 24px -16px oklch(0% 0 0 / 0.5), 0 0 0 1px oklch(100% 0 0 / 0.02)",
+        "purpose": "Hover only, on genuinely interactive cards. Never at rest."
+      },
+      {
+        "name": "focus",
+        "value": "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
+        "purpose": "Doubled focus ring on inputs and the composer."
+      }
+    ],
+    "motion": [
+      {
+        "name": "motion.entrance",
+        "value": "180ms cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Things appearing. opacity + y (4-8px)."
+      },
+      {
+        "name": "motion.feedback",
+        "value": "140ms cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Hover/tap micro-interactions. opacity + scale (0.96-0.99)."
+      },
+      {
+        "name": "motion.expand",
+        "value": "220ms cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "Accordion row expand. ONLY sanctioned layout-property animation (height: auto)."
+      },
+      {
+        "name": "motion.pulse",
+        "value": "1200ms ease-out, once",
+        "purpose": "Recall flash after 'Jump to' / signature moments. accent-soft -> transparent. Never loops."
+      },
+      {
+        "name": "motion.cursor",
+        "value": "1050ms steps(2), infinite",
+        "purpose": "Streaming cursor. opacity. Attached to trailing text segment."
+      },
+      {
+        "name": "motion.pending",
+        "value": "1200ms linear, infinite",
+        "purpose": "Three pulsing dots beside the phase pill. opacity (0.3 -> 1 -> 0.3)."
+      },
+      {
+        "name": "focus-arrive",
+        "value": "120ms cubic-bezier(0.25, 1, 0.5, 1), once",
+        "purpose": "Focus ring fade-in when arriving via tab."
+      }
+    ],
+    "icons": {
+      "family": "lucide-react",
+      "strokeWidth": 1.5,
+      "sizesByContext": {
+        "inline-button": 12,
+        "header-action": 14,
+        "empty-state-hero": 16,
+        "tool-card-inline": 12,
+        "tool-card-header": 14,
+        "mention-pill": 10,
+        "chevron": 14,
+        "offline": 11
+      },
+      "sanctioned": {
+        "identity": ["Notebook"],
+        "navigation": [
+          "ChevronRight",
+          "ChevronDown",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowUpRight",
+          "ArrowLeft"
+        ],
+        "actions-contacts": ["UserPlus", "UserMinus", "Pencil", "Trash2", "Undo2"],
+        "actions-assets": ["Briefcase"],
+        "tool-kinds": ["Search", "Database", "Edit3", "Mail"],
+        "states": ["CheckCircle2", "AlertCircle", "Square", "CloudOff"],
+        "communication": ["MessageSquare", "Users"],
+        "auth": ["LogOut", "KeyRound"],
+        "settings": ["Settings"],
+        "discover": ["Compass", "MessageCircleQuestion", "HelpCircle"],
+        "close": ["X"]
+      },
+      "banned": ["Sparkles", "Stars", "Wand", "Wand2"],
+      "rules": [
+        "Icons inherit currentColor; never carry their own non-token color.",
+        "lucide-react only. Do not mix in Feather, Heroicons, Tabler, Phosphor, or custom SVGs.",
+        "Use the role-based size from sizesByContext, not a pixel-perfect choice.",
+        "The wordmark dot is a styled <span>, not an SVG. It's the one sanctioned non-lucide mark."
+      ]
+    },
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Wordmark (Header)",
+      "kind": "custom",
+      "refersTo": "wordmark",
+      "description": "The Reknowable brand lockup. A Brand Amber dot + the lowercase mark in Geist Sans 500.",
+      "html": "<span class=\"ds-wordmark\"><span class=\"ds-wordmark-dot\" aria-hidden></span><span class=\"ds-wordmark-text\">reknowable</span></span>",
+      "css": ".ds-wordmark { display: inline-flex; align-items: center; gap: 0.5rem; } .ds-wordmark-dot { display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background: var(--color-accent, #CD9B5B); } .ds-wordmark-text { font-family: 'Geist Sans', ui-sans-serif, system-ui, sans-serif; font-size: 1rem; font-weight: 500; line-height: 1; letter-spacing: -0.022em; color: var(--color-fg, #F4F5F1); }"
+    },
+    {
+      "name": "Recall Button (Composer Send)",
+      "kind": "button",
+      "refersTo": "button-recall",
+      "description": "Brand Amber filled. The single moment of the chat where recall lives: the send action.",
+      "html": "<button class=\"ds-btn-recall\" type=\"submit\" aria-label=\"Send\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"M12 19V5\"/><path d=\"M5 12l7-7 7 7\"/></svg></button>",
+      "css": ".ds-btn-recall { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: var(--color-accent, #CD9B5B); color: var(--color-bg, #0D1729); border: none; border-radius: 6px; cursor: pointer; transition: opacity 160ms cubic-bezier(0.25, 1, 0.5, 1), transform 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-recall:hover { opacity: 0.9; } .ds-btn-recall:active { transform: scale(0.96); } .ds-btn-recall:focus-visible { outline: 2px solid var(--color-accent, #CD9B5B); outline-offset: 2px; }"
+    },
+    {
+      "name": "Filled-Ink Button",
+      "kind": "button",
+      "refersTo": "button-ink",
+      "description": "Cream-on-navy filled button. Used on Stop, Save, Undo, auth submit.",
+      "html": "<button class=\"ds-btn-ink\" type=\"button\">Save</button>",
+      "css": ".ds-btn-ink { display: inline-flex; align-items: center; gap: 0.25rem; background: var(--color-fg, #F4F5F1); color: var(--color-bg, #0D1729); border: none; border-radius: 6px; padding: 0.375rem 0.75rem; font-family: 'Geist Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: opacity 160ms cubic-bezier(0.25, 1, 0.5, 1), transform 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-ink:hover { opacity: 0.9; } .ds-btn-ink:active { transform: scale(0.98); } .ds-btn-ink:focus-visible { outline: 2px solid var(--color-accent, #CD9B5B); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Inline row action. Muted at rest; lifts to warm-graphite on hover.",
+      "html": "<button class=\"ds-btn-ghost\" type=\"button\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path d=\"M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z\"/></svg>Edit notes</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 0.375rem; background: transparent; color: var(--color-muted, #A5A29D); border: none; border-radius: 6px; padding: 0.25rem 0.5rem; font-family: 'Geist Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: background-color 160ms cubic-bezier(0.25, 1, 0.5, 1), color 160ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-ghost:hover { background: var(--color-surface-soft, #242324); color: var(--color-fg, #F4F5F1); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Inset hairline at rest; doubled Brand-Amber focus ring on focus.",
+      "html": "<input class=\"ds-input-text\" type=\"text\" placeholder=\"Free-form notes about this contact.\" />",
+      "css": ".ds-input-text { display: block; width: 100%; background: var(--color-surface, oklch(20% 0.045 260)); color: var(--color-fg, #F4F5F1); border: none; border-radius: 6px; padding: 0.5rem 0.75rem; font-family: 'Geist Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.9375rem; line-height: 1.6; letter-spacing: -0.011em; box-shadow: inset 0 0 0 1px var(--color-border, oklch(28% 0.040 260)); transition: box-shadow 220ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-input-text::placeholder { color: var(--color-faint, oklch(50% 0.008 90)); } .ds-input-text:focus { outline: none; box-shadow: 0 0 0 2px var(--color-bg, #0D1729), 0 0 0 4px var(--color-accent, #CD9B5B); }"
+    },
+    {
+      "name": "Meta Chip",
+      "kind": "chip",
+      "refersTo": "chip-meta",
+      "description": "Asset count, tag, kbd hint. Warm-graphite background, Mono font, no hover.",
+      "html": "<span class=\"ds-chip-meta\">2 ASSETS</span>",
+      "css": ".ds-chip-meta { display: inline-flex; align-items: center; background: var(--color-surface-soft, #242324); color: var(--color-muted, #A5A29D); border-radius: 4px; padding: 0.125rem 0.5rem; font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.625rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }"
+    },
+    {
+      "name": "User Chat Bubble",
+      "kind": "custom",
+      "refersTo": "bubble-user",
+      "description": "Cream-filled right-justified bubble on navy. The bright moment in the conversation.",
+      "html": "<div class=\"ds-bubble-row\"><div class=\"ds-bubble-user\">Add Anna Svensson, warmth 1, Göteborg, runs Stockholm AI meetups.</div></div>",
+      "css": ".ds-bubble-row { display: flex; justify-content: flex-end; } .ds-bubble-user { max-width: 88%; background: var(--color-fg, #F4F5F1); color: var(--color-bg, #0D1729); border-radius: 10px; padding: 0.5rem 0.875rem; font-family: 'Geist Sans', ui-sans-serif, system-ui, sans-serif; font-size: 0.9375rem; line-height: 1.6; letter-spacing: -0.011em; }"
+    },
+    {
+      "name": "Warmth Dot",
+      "kind": "custom",
+      "refersTo": "warmth",
+      "description": "9px circle filled with one ramp color. Anchors at Brand Amber and fades to navy slate.",
+      "html": "<div class=\"ds-warmth-row\"><span class=\"ds-warmth-dot ds-warmth-1\" aria-label=\"warmth 1, closest\"></span><span class=\"ds-warmth-dot ds-warmth-2\" aria-label=\"warmth 2\"></span><span class=\"ds-warmth-dot ds-warmth-3\" aria-label=\"warmth 3\"></span><span class=\"ds-warmth-dot ds-warmth-4\" aria-label=\"warmth 4\"></span><span class=\"ds-warmth-dot ds-warmth-5\" aria-label=\"warmth 5, most distant\"></span></div>",
+      "css": ".ds-warmth-row { display: inline-flex; gap: 0.75rem; align-items: center; padding: 0.5rem; } .ds-warmth-dot { display: inline-block; width: 9px; height: 9px; border-radius: 9999px; } .ds-warmth-1 { background: #CD9B5B; } .ds-warmth-2 { background: oklch(76% 0.12 50); } .ds-warmth-3 { background: oklch(80% 0.10 30); } .ds-warmth-4 { background: oklch(82% 0.08 350); } .ds-warmth-5 { background: oklch(70% 0.04 260); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Operator's Study",
+    "overview": "A CEO's evening office, lit by a single brass lamp. Navy walls. Cream pages on the desk. Amber-gold spine on the book that just opened. Not a server room, not an open-plan startup. Considered, late, focused. The mood of recalling who you know to make the morning's meeting work.\n\nReknowable is dark by design. The surface is deep navy, never cool blue-grey. The ink is warm cream, never pure white. The single accent is Brand Amber, taken straight from the Reknowable logo: it carries every recall moment.",
+    "keyCharacteristics": [
+      "Dark by design, navy by surface, cream by ink, amber by accent.",
+      "All five palette values taken from the Reknowable logo.",
+      "Warmth ramp anchors at brand amber for closest and fades to a navy slate for most distant.",
+      "Two type families only: Geist Sans for everything, Geist Mono for IDs/timings.",
+      "Generous density; the interface breathes.",
+      "Hairline 1px borders; surfaces lift via inset rings on hover, never drop shadow.",
+      "All motion ≤ 250ms, ease-out, transform + opacity only.",
+      "55/45 split panes above lg; tab-toggle stack below.",
+      "The wordmark [●] reknowable is the sacred identity mark."
+    ],
+    "rules": [
+      {
+        "name": "The Recall Rule",
+        "body": "Brand Amber appears only where the system marks a moment of recall: focus, the streaming cursor, AI-action confirmation, the wordmark mark, the highlight pulse, the signature first-entry, the composer send button. Decorative use breaks the rule.",
+        "section": "colors"
+      },
+      {
+        "name": "The Navy-and-Cream Rule",
+        "body": "Every surface is navy (cool, with hue ~260) or warm graphite. Every ink is cream or its derivatives. Pure black and pure white are banned. Cold blue-grey without hue is banned.",
+        "section": "colors"
+      },
+      {
+        "name": "The Logo-First Rule",
+        "body": "The five hex values from the Reknowable logo (#0D1729, #242324, #A5A29D, #CD9B5B, #F4F5F1) are sacred. They are the brand's color identity. New chromatic colors require an explicit case and update to this rule.",
+        "section": "colors"
+      },
+      {
+        "name": "The Warm-to-Cool Rule",
+        "body": "The warmth ramp's gradient is semantic and load-bearing. Warmth-1 = brand amber (closest); warmth-5 = navy slate (most distant).",
+        "section": "colors"
+      },
+      {
+        "name": "The One-Family Rule",
+        "body": "Geist Sans + Geist Mono are the entire typography vocabulary. Hierarchy from weight, scale, and case. Never from a serif/script accent.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono-for-Tech Rule",
+        "body": "Geist Mono appears only on inherently technical strings (timestamps, durations, IDs, key captions, asset counts, kbd content).",
+        "section": "typography"
+      },
+      {
+        "name": "The Wordmark Singular Rule",
+        "body": "The wordmark lockup is sacred. Use the <Wordmark/> component. Never uppercase, never boxed, never lose the dot.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-by-Default Rule",
+        "body": "No element carries a drop shadow at rest. Lift is a response to state.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Hairline-First Rule",
+        "body": "Surfaces describe themselves with a 1px hairline ring, not a fill change.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Layout-Properties Rule",
+        "body": "motion.expand (accordion height) is the only sanctioned layout-property animation. Everything else animates transform + opacity only.",
+        "section": "components"
+      },
+      {
+        "name": "The Earned-Moments Rule",
+        "body": "Signature moments must be rare on purpose. New ones require a name, a once-per-lifetime trigger, and an explicit Brand-Amber expression.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do use Brand Amber only for recall moments: focus, the streaming cursor, AI-action confirmation, the wordmark mark, hover-selected states, signature first-entry, and the composer send button.",
+      "Do reach for a different type weight or scale before reaching for color or decoration.",
+      "Do keep neutrals tinted: navy surfaces carry hue 260 chroma 0.04, ink carries hue 110 chroma 0.008. Never pure #fff or #000.",
+      "Do use the inset hairline ring to describe surfaces. Cards are flat; they ring themselves.",
+      "Do keep all motion ≤ 250ms, ease-out, on transform + opacity only.",
+      "Do use Geist Mono only on inherently technical strings.",
+      "Do respect prefers-reduced-motion: reduce — non-essential animations become instant state changes.",
+      "Do keep body line length at 65–75ch where it wraps.",
+      "Do use the <Wordmark/> component for any in-product appearance of the brand mark.",
+      "Do add press feedback (active:scale-[0.96] or 0.98) on every interactive button."
+    ],
+    "donts": [
+      "Don't add a second chromatic brand color. Reknowable runs on Brand Amber + the warmth ramp.",
+      "Don't use #000 or #fff. Every neutral tilts toward navy / cream. Cold zero-chroma blue-greys are banned.",
+      "Don't use AI slop in any form: purple-to-blue gradients, glassmorphism, neon on dark, sparkle decorations, 'AI-generated' patina.",
+      "Don't reach for any drop-shadow card lift. Surfaces are flat; hairlines describe them.",
+      "Don't build card grids of equal-sized rounded rectangles with icon-above-heading-above-text. SaaS template.",
+      "Don't nest cards inside cards.",
+      "Don't reach for a modal when something fits inline. Command palette and cheatsheet are the only sanctioned modals.",
+      "Don't use bouncy, elastic, or spring-overshoot easings.",
+      "Don't animate layout properties. Transform + opacity only.",
+      "Don't use bright primary buttons for hierarchy.",
+      "Don't introduce a third type family.",
+      "Don't mix in icons from other families or write custom SVGs. lucide-react only.",
+      "Don't use em dashes in UI copy.",
+      "Don't re-style the wordmark inline. Use <Wordmark/>.",
+      "Don't drift toward 'ops dashboard' navy by adding cyan accents, neon glow, or terminal-green data displays."
+    ]
+  }
+}

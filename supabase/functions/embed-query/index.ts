@@ -55,8 +55,8 @@ app.post('/', async (c) => {
     headers: {
       Authorization: `Bearer ${openrouterKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://network-ai.app',
-      'X-Title': 'network-ai',
+      'HTTP-Referer': 'https://reknowable.app',
+      'X-Title': 'reknowable',
     },
     body: JSON.stringify({ model: 'openai/text-embedding-3-small', input: [body.text] }),
     signal: c.req.raw.signal,

@@ -1,5 +1,5 @@
 {
-  "name": "@network-ai/app",
+  "name": "@reknowable/app",
   "version": "0.0.0",
   "private": true,
   "main": "./src/index.ts",
@@ -20,11 +20,13 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "1.0.39",
-    "@network-ai/types": "workspace:*",
-    "@network-ai/ui": "workspace:*",
+    "@reknowable/types": "workspace:*",
+    "@reknowable/ui": "workspace:*",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
+    "@tanstack/react-virtual": "^3.13.24",
     "ai": "5.0.188",
+    "idb": "^8.0.3",
     "lucide-react": "^0.469.0",
     "motion": "^11.18.2",
     "react": "18.3.1",
@@ -35,10 +37,12 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@network-ai/test-utils": "workspace:*",
+    "@reknowable/test-utils": "workspace:*",
     "@testing-library/react": "^16.1.0",
     "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.7",
     "@types/react-native": "^0.73.0",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^25.0.1",
     "react-dom": "18.3.1",
     "typescript": "^5.7.3",

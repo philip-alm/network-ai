@@ -66,8 +66,8 @@ async function handleChat(c: Context): Promise<Response> {
   try {
     const built = buildUpstreamRequest(body, {
       openrouterKey,
-      referer: 'https://network-ai.app',
-      title: 'network-ai',
+      referer: 'https://reknowable.app',
+      title: 'reknowable',
     });
     streaming = built.streaming;
     log('debug', ctx, 'upstream.fetch.start', { url: built.url, streaming });

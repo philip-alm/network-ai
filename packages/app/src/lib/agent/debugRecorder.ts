@@ -2,7 +2,7 @@
  * Debug recorder — captures byte-exact LLM I/O + tool calls + DB state per turn.
  *
  * Per Incredible-style debug artifact contract (root CLAUDE.md §8):
- *   ~/Documents/network-ai-debug/<timestamp>-<slug>/
+ *   ~/Documents/reknowable-debug/<timestamp>-<slug>/
  *     metadata.json
  *     timeline.jsonl
  *     llm/turn-NN/request.json + response.sse

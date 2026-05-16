@@ -65,7 +65,7 @@ const steps: Step[] = [
     name: 'web build',
     run: () =>
       check('apps/web build', () => {
-        run('pnpm -F @network-ai/web build');
+        run('pnpm -F @reknowable/web build');
       }),
   },
 ];

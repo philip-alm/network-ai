@@ -1,5 +1,5 @@
 /**
- * @network-ai/test-utils — shared test harnesses.
+ * @reknowable/test-utils — shared test harnesses.
  *
  * Dev-only — never imported by production code.
  */

@@ -1,16 +1,16 @@
 {
   "expo": {
-    "name": "network-ai",
-    "slug": "network-ai",
+    "name": "reknowable",
+    "slug": "reknowable",
     "version": "0.0.0",
     "orientation": "portrait",
-    "scheme": "network-ai",
+    "scheme": "reknowable",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.networkai.app",
-      "associatedDomains": ["applinks:network-ai.app"]
+      "associatedDomains": ["applinks:reknowable.app"]
     },
     "android": {
       "package": "com.networkai.app",
@@ -18,7 +18,7 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "network-ai.app" }],
+          "data": [{ "scheme": "https", "host": "reknowable.app" }],
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ]

@@ -17,8 +17,8 @@ calls directly against Supabase RPCs (RLS-scoped by the caller's JWT).
 - `ai` (Vercel AI SDK 5) — streamText, stepCountIs, tool helper
 - `@ai-sdk/openai-compatible` — OpenAI-compatible provider over our Edge Function (or OpenRouter directly in scripts)
 - `zod` — tool parameter schemas
-- `@network-ai/app/lib/supabase` — tool execution target
-- `@network-ai/types` — Database shape
+- `@reknowable/app/lib/supabase` — tool execution target
+- `@reknowable/types` — Database shape
 
 ## The 4 tools
 
@@ -31,7 +31,7 @@ calls directly against Supabase RPCs (RLS-scoped by the caller's JWT).
 
 ## Debug artifacts
 
-Every `runAgentTurn` call writes a folder under `~/Documents/network-ai-debug/<timestamp>-<slug>/`
+Every `runAgentTurn` call writes a folder under `~/Documents/reknowable-debug/<timestamp>-<slug>/`
 containing the BYTE-EXACT request bodies sent to the LLM, the raw SSE stream
 back, every tool call's args + result, and DB-state snapshots before/after.
 This is how Claude diagnoses without booting the UI (per root CLAUDE.md §1

@@ -5,7 +5,7 @@
  *   1. Ensures local Supabase is running (`supabase start` if not).
  *   2. Starts `supabase functions serve` with supabase/.env loaded.
  *   3. Starts Next.js dev server (apps/web) pointing at LOCAL Supabase.
- *   4. Pipes ALL three streams into ~/Documents/network-ai-debug/dev-<ts>/all.log
+ *   4. Pipes ALL three streams into ~/Documents/reknowable-debug/dev-<ts>/all.log
  *      with `[layer] [time]` prefixes. The same content also streams to stdout
  *      with color-coded prefixes so you can watch live.
  *
@@ -26,7 +26,7 @@ import { join } from 'node:path';
 const ROOT = join(import.meta.dirname ?? __dirname, '..');
 
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
-const debugDir = join(homedir(), 'Documents', 'network-ai-debug', `dev-${ts}`);
+const debugDir = join(homedir(), 'Documents', 'reknowable-debug', `dev-${ts}`);
 mkdirSync(debugDir, { recursive: true });
 const allLog = createWriteStream(join(debugDir, 'all.log'), { flags: 'a' });
 
@@ -97,7 +97,7 @@ pipe(functions, 'functions');
 
 // 3. Next.js dev server.
 console.log('[dev:full] starting next dev (apps/web) ...');
-const web = spawn('pnpm', ['-F', '@network-ai/web', 'dev'], { cwd: ROOT, env: process.env });
+const web = spawn('pnpm', ['-F', '@reknowable/web', 'dev'], { cwd: ROOT, env: process.env });
 pipe(web, 'web');
 
 // Graceful shutdown.

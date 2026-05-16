@@ -38,6 +38,20 @@ export type ToolCardKind =
       assetPreviews: string[];
       debug?: unknown;
     }
+  | {
+      kind: 'panel_set';
+      /** Short list of human-readable facet labels applied this call. */
+      facets: string[];
+      /** Count of contacts pinned by this set_panel invocation. */
+      pinnedContactIds: string[];
+      /** Count of assets pinned by this set_panel invocation. */
+      pinnedAssetIds: string[];
+      /** Free-text search string if this call set one, else null. */
+      search: string | null;
+      /** View mode set by this call (contacts | both | assets), or null. */
+      view: 'contacts' | 'both' | 'assets' | null;
+    }
+  | { kind: 'panel_cleared' }
   | { kind: 'error'; tool: string; error: string; hint: string };
 
 type Envelope = {
@@ -152,8 +166,113 @@ export function parseToolResult(
         debug: data?.debug,
       };
     }
+    case 'set_panel': {
+      const a = (args ?? {}) as {
+        contactFilter?: {
+          cities?: string[];
+          tags?: string[];
+          tagsAll?: string[];
+          warmth?: number[];
+          hasAssets?: boolean | null;
+          updatedWithinDays?: number | null;
+        };
+        assetFilter?: {
+          tags?: string[];
+          tagsAll?: string[];
+          ownerIds?: string[];
+          hasOwner?: boolean | null;
+          availabilityContains?: string;
+          updatedWithinDays?: number | null;
+        };
+        contactSort?: string;
+        assetSort?: string;
+        search?: string;
+        pinnedContactIds?: string[];
+        pinnedAssetIds?: string[];
+        view?: 'contacts' | 'both' | 'assets';
+      };
+      const facets: string[] = [];
+      const cf = a.contactFilter;
+      if (cf) {
+        if (cf.cities?.length) facets.push(...cf.cities);
+        if (cf.tags?.length) facets.push(...cf.tags);
+        if (cf.tagsAll?.length) facets.push(...cf.tagsAll.map((t) => `+${t}`));
+        if (cf.warmth?.length) facets.push(...cf.warmth.map((w) => `warmth ${w}`));
+        if (cf.hasAssets === true) facets.push('has assets');
+        if (cf.hasAssets === false) facets.push('no assets');
+        if (cf.updatedWithinDays != null) facets.push(`updated ${cf.updatedWithinDays}d`);
+      }
+      const af = a.assetFilter;
+      if (af) {
+        if (af.tags?.length) facets.push(...af.tags.map((t) => `asset: ${t}`));
+        if (af.tagsAll?.length) facets.push(...af.tagsAll.map((t) => `asset: +${t}`));
+        if (af.hasOwner === true) facets.push('attached assets');
+        if (af.hasOwner === false) facets.push('unattached assets');
+        if (af.availabilityContains) facets.push(`available: ${af.availabilityContains}`);
+        if (af.updatedWithinDays != null) facets.push(`asset updated ${af.updatedWithinDays}d`);
+      }
+      if (a.contactSort) facets.push(`sort: ${a.contactSort}`);
+      if (a.assetSort) facets.push(`asset sort: ${a.assetSort}`);
+
+      return {
+        kind: 'panel_set',
+        facets,
+        pinnedContactIds: a.pinnedContactIds ?? [],
+        pinnedAssetIds: a.pinnedAssetIds ?? [],
+        search: a.search ? a.search : null,
+        view: a.view ?? null,
+      };
+    }
+    case 'clear_panel':
+      return { kind: 'panel_cleared' };
   }
   return null;
+}
+
+export type MutationRows = {
+  upsertContacts: Contact[];
+  upsertAssets: Asset[];
+  removeContactIds: string[];
+  removeAssetIds: string[];
+};
+
+/**
+ * Extract every contact / asset row touched by a `mutate_sql` call.
+ *
+ * `parseToolResult` returns at most one card-worthy row, which silently
+ * loses bulk inserts (the right pane stayed empty after "add 20 contacts"
+ * until a page refresh). The optimistic-update path needs all rows.
+ */
+export function extractMutationRows(args: unknown, result: unknown): MutationRows {
+  const empty: MutationRows = {
+    upsertContacts: [],
+    upsertAssets: [],
+    removeContactIds: [],
+    removeAssetIds: [],
+  };
+  const out = (result ?? {}) as Envelope;
+  if (out.ok !== true) return empty;
+  const sql = ((args as { sql?: string } | undefined)?.sql ?? '').toLowerCase();
+  const isHardDelete = sql.trimStart().startsWith('delete');
+  const isSoftDelete = sql.includes('set deleted_at') && !/deleted_at\s*=\s*null/.test(sql);
+  const isDelete = isHardDelete || isSoftDelete;
+
+  const acc: MutationRows = {
+    upsertContacts: [],
+    upsertAssets: [],
+    removeContactIds: [],
+    removeAssetIds: [],
+  };
+  for (const row of asRows(out)) {
+    if (isContactRow(row)) {
+      if (isDelete) acc.removeContactIds.push(row.id);
+      else acc.upsertContacts.push(row);
+    } else if (isAssetRow(row)) {
+      if (isDelete) acc.removeAssetIds.push(row.id);
+      else acc.upsertAssets.push(row);
+    }
+  }
+  return acc;
 }
 
 /** Extract column names from a `SET col = …, col2 = …` clause. Best-effort. */

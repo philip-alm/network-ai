@@ -1,17 +1,48 @@
 import type { ReactNode } from 'react';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
+import { OfflineBanner } from '@reknowable/app';
 import './globals.css';
 
 export const metadata = {
-  title: 'network-ai',
-  description: 'Personal network mapper with an AI agent.',
+  title: 'Reknowable',
+  description:
+    'A second brain for everyone in your network. Recall the right contact, the right asset, on demand.',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 };
+
+export const viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#FAFAFB' },
+    { media: '(prefers-color-scheme: dark)', color: '#0E0F12' },
+  ],
+};
+
+// Inline before-hydration script. Sets `data-theme` on <html> from the
+// user's stored preference (or system fallback) BEFORE React paints so
+// there's no flash of the wrong theme. Tiny + idempotent.
+const THEME_BOOTSTRAP = `(() => {
+  try {
+    const stored = localStorage.getItem('reknowable:theme');
+    if (stored === 'light' || stored === 'dark') {
+      document.documentElement.dataset.theme = stored;
+    }
+  } catch {}
+})();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body>{children}</body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
+      </head>
+      <body>
+        {children}
+        <OfflineBanner />
+      </body>
     </html>
   );
 }

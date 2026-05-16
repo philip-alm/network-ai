@@ -1,7 +1,7 @@
 # packages/app/features/home
 
 The two-pane home screen: chat on the left, contacts accordion on the right.
-Composes `@network-ai/app/features/chat` + `@network-ai/app/features/contacts`.
+Composes `@reknowable/app/features/chat` + `@reknowable/app/features/contacts`.
 
 The header shows the signed-in user's email + a sign-out button.
 

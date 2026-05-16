@@ -13,8 +13,8 @@ imports the client from here.
 ## Dependencies
 
 - `@supabase/supabase-js` — the client
-- `@network-ai/app/lib/env` — for URL + publishable key
-- `@network-ai/types` — for the typed Database generic
+- `@reknowable/app/lib/env` — for URL + publishable key
+- `@reknowable/types` — for the typed Database generic
 
 ## What's banned in this module
 

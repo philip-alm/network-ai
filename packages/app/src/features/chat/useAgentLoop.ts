@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   runBrowserAgentTurn,
-  parseToolResult,
+  extractMutationRows,
+  classifyError,
   type AgentMessage,
   type AgentToolInvocation,
   type AgentPhase,
@@ -17,6 +18,8 @@ export type UseAgentLoopOptions = {
   threadId: string;
 };
 
+export type QueuedMessage = { id: string; text: string };
+
 export type UseAgentLoopResult = {
   messages: ChatMessage[];
   send: (text: string) => Promise<void>;
@@ -26,6 +29,17 @@ export type UseAgentLoopResult = {
   /** Coarse phase signal — the "thinking…" pill below the bubble reads this. */
   phase: AgentPhase;
   retryHint: string | null;
+  /** Messages the user typed while a previous turn was still running.
+   *  Drained one-by-one as `isPending` flips false. */
+  queue: QueuedMessage[];
+  /** Pop the tail of the queue and return its text. UI binds this to
+   *  ArrowUp-on-empty-input so the user can recall + edit. */
+  popQueueTail: () => string | null;
+  /** Push raw text onto the queue tail. UI binds this to ArrowDown so
+   *  the user can re-queue an in-progress draft. */
+  pushToQueue: (text: string) => void;
+  /** Remove a queued message by id (e.g. the hover-X on a queue bubble). */
+  removeQueued: (id: string) => void;
 };
 
 let idSeq = 0;
@@ -51,19 +65,46 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<AgentPhase>('idle');
   const [retryHint, setRetryHint] = useState<string | null>(null);
+  const [queue, setQueue] = useState<QueuedMessage[]>([]);
+  const queueRef = useRef<QueuedMessage[]>([]);
+  // Keep the ref in sync so the runAgent prepareStep callback (which is
+  // captured at turn-start) reads the freshest queue.
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
   const abortRef = useRef<AbortController | null>(null);
   const optimisticHandledRef = useRef<Set<string>>(new Set());
+  // Guards the drain effect from firing twice for the same queue head
+  // when React re-runs the effect before our setQueue commits.
+  const drainingRef = useRef(false);
+  // Splitting state: when steering injects mid-turn we freeze the
+  // current assistant bubble and spawn a new one. `currentAssistantIdRef`
+  // tracks which bubble subsequent segment updates go to.
+  // `segmentSplitIndexRef` is the cumulative segments length AT the
+  // point of the latest split, so we can slice the cumulative array
+  // emitted by runAgent into the post-split slice for the active bubble.
+  const currentAssistantIdRef = useRef<string | null>(null);
+  const segmentSplitIndexRef = useRef(0);
+  const cumulativeSegmentsLenRef = useRef(0);
 
   const storeActions = useNetworkStore((s) => s.actions);
 
   const send = useCallback(
     async (text: string): Promise<void> => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      // If a turn is already running, queue the message instead of
+      // dropping it. The drain effect picks it up when isPending flips.
+      if (isPending) {
+        setQueue((q) => [...q, { id: nextId(), text: trimmed }]);
+        return;
+      }
       setError(null);
       setPhase('thinking');
       setRetryHint(null);
       optimisticHandledRef.current = new Set();
 
-      const userMsg: ChatMessage = { id: nextId(), role: 'user', text };
+      const userMsg: ChatMessage = { id: nextId(), role: 'user', text: trimmed };
       const assistantId = nextId();
       const placeholder: ChatMessage = {
         id: assistantId,
@@ -72,6 +113,11 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
         segments: [],
         streaming: true,
       };
+
+      // Reset split tracking for this turn.
+      currentAssistantIdRef.current = assistantId;
+      segmentSplitIndexRef.current = 0;
+      cumulativeSegmentsLenRef.current = 0;
 
       // Read history SYNCHRONOUSLY from the closure — React 18 queues
       // setState updates, so reading inside the setMessages updater
@@ -82,11 +128,15 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
       setMessages((prev) => [...prev, userMsg, placeholder]);
       setIsPending(true);
 
+      // Update the *currently-active* assistant bubble (tracked via ref
+      // so it can change mid-turn when steering splits).
       const updateAssistant = (mut: (m: ChatMessage) => ChatMessage): void => {
+        const id = currentAssistantIdRef.current;
+        if (!id) return;
         setMessages((prev) => {
           const next = prev.slice();
           for (let i = next.length - 1; i >= 0; i--) {
-            if (next[i].id === assistantId) {
+            if (next[i].id === id) {
               next[i] = mut(next[i]);
               break;
             }
@@ -102,33 +152,84 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
         const result = await runBrowserAgentTurn({
           threadId,
           userId,
-          userMessage: text,
+          userMessage: trimmed,
           history: historyBeforeThisTurn,
           abortSignal: controller.signal,
+          getPendingQueue: () => queueRef.current.map((q) => q.text),
+          clearPendingQueue: () => setQueue([]),
           callbacks: {
-            onSegmentsUpdate: (segs) => updateAssistant((m) => ({ ...m, segments: segs })),
+            onSegmentsUpdate: (segs) => {
+              // runAgent emits CUMULATIVE segments across the whole
+              // streamText call. After a split, the live bubble should
+              // only show segments produced since the split.
+              cumulativeSegmentsLenRef.current = segs.length;
+              const sliced = segs.slice(segmentSplitIndexRef.current);
+              updateAssistant((m) => ({ ...m, segments: sliced }));
+            },
             onPhaseChange: (p) => setPhase(p),
             onToolEnd: (tc) => {
               if (optimisticHandledRef.current.has(tc.id)) return;
               optimisticHandledRef.current.add(tc.id);
               applyOptimistic(tc, storeActions);
             },
-            onRetry: (attempt, kind) =>
-              setRetryHint(`Retrying (attempt ${attempt + 1}) — recoverable ${kind}…`),
+            onRetry: (attempt) => setRetryHint(`Reconnecting. Attempt ${attempt + 1}.`),
+            onSteeringInjected: (texts) => {
+              // SPLIT THE BUBBLE so the queued user messages land
+              // chronologically — between what the AI said before
+              // your input arrived and what it says next in response.
+              //
+              //   1. Freeze the current assistant bubble in place (mark
+              //      not-streaming, keep its current segments slice).
+              //   2. Append user bubbles for each queued message.
+              //   3. Spawn a fresh streaming assistant bubble.
+              //   4. Advance the split index so subsequent cumulative
+              //      segments-emissions slice into the new bubble.
+              const prevId = currentAssistantIdRef.current;
+              const newAssistantId = nextId();
+              const userBubbles: ChatMessage[] = texts.map((t) => ({
+                id: nextId(),
+                role: 'user',
+                text: t,
+              }));
+              setMessages((prev) => {
+                const next = prev.map((m) => (m.id === prevId ? { ...m, streaming: false } : m));
+                next.push(...userBubbles);
+                next.push({
+                  id: newAssistantId,
+                  role: 'assistant',
+                  text: '',
+                  segments: [],
+                  streaming: true,
+                });
+                return next;
+              });
+              currentAssistantIdRef.current = newAssistantId;
+              segmentSplitIndexRef.current = cumulativeSegmentsLenRef.current;
+            },
           },
         });
 
+        // Final commit for the currently-active bubble. Slice segments
+        // into the post-split slice in case a steering split happened.
+        const finalSegments = result.segments.slice(segmentSplitIndexRef.current);
         updateAssistant((m) => ({
           ...m,
-          text: result.text || (result.interrupted ? '(interrupted)' : ''),
+          text: result.text || (result.interrupted ? 'Stopped.' : ''),
           toolCalls: result.toolCalls as AgentToolInvocation[],
-          segments: result.segments,
+          segments: finalSegments,
           streaming: false,
         }));
         setPhase('idle');
         setRetryHint(null);
+        // Belt-and-suspenders: trigger a network-side refetch in case
+        // the optimistic path missed any rows (e.g. a bulk insert with
+        // an unusual return shape) or Realtime is lagging. useContacts
+        // listens for this event and re-hydrates the store.
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('reknowable:network-changed'));
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(friendlyErrorMessage(err));
         setPhase('idle');
         // Mark the placeholder as no-longer-streaming so the cursor stops.
         updateAssistant((m) => ({ ...m, streaming: false }));
@@ -137,8 +238,42 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
         abortRef.current = null;
       }
     },
-    [messages, userId, threadId, storeActions],
+    [isPending, messages, userId, threadId, storeActions],
   );
+
+  // Drain the queue: when a turn finishes, bundle ALL queued messages
+  // into one composite send (joined by newlines) and clear the queue.
+  // The `drainingRef` guard keeps this effect idempotent if it re-runs
+  // before our setQueue commits.
+  useEffect(() => {
+    if (isPending || queue.length === 0 || drainingRef.current) return;
+    const bundled = queue.map((q) => q.text).join('\n');
+    drainingRef.current = true;
+    setQueue([]);
+    void send(bundled).finally(() => {
+      drainingRef.current = false;
+    });
+  }, [isPending, queue, send]);
+
+  const popQueueTail = useCallback((): string | null => {
+    let popped: string | null = null;
+    setQueue((q) => {
+      if (q.length === 0) return q;
+      popped = q[q.length - 1].text;
+      return q.slice(0, -1);
+    });
+    return popped;
+  }, []);
+
+  const pushToQueue = useCallback((text: string): void => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setQueue((q) => [...q, { id: nextId(), text: trimmed }]);
+  }, []);
+
+  const removeQueued = useCallback((id: string): void => {
+    setQueue((q) => q.filter((m) => m.id !== id));
+  }, []);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -152,6 +287,10 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
     error,
     phase,
     retryHint,
+    queue,
+    popQueueTail,
+    pushToQueue,
+    removeQueued,
   };
 }
 
@@ -187,30 +326,41 @@ export function buildHistoryForLlm(messages: ChatMessage[]): AgentMessage[] {
   return out;
 }
 
+/**
+ * Translate the raw thrown error into a user-facing line that follows
+ * BRAND.md: lead with what to do, not what failed. Reference codes /
+ * stack fragments stay in the dev recorder, not in the UI.
+ */
+function friendlyErrorMessage(err: unknown): string {
+  const classified = classifyError(err);
+  switch (classified.kind) {
+    case 'recoverable_stream_stalled':
+      return 'Connection went quiet. Try again in a moment.';
+    case 'recoverable_stream_errored':
+      return "Couldn't reach the assistant. Try again in a moment.";
+    case 'recoverable_truncated':
+      return 'The reply was cut short. Try again.';
+    case 'recoverable_rate_limited':
+      return 'Slow down for a moment. Try again shortly.';
+    case 'fatal_auth':
+      return 'Sign in again to continue.';
+    case 'fatal_malformed_history':
+      return 'Conversation state got tangled. Start a new thread.';
+    case 'fatal_provider':
+      return "Couldn't reach the assistant. Try again in a moment.";
+  }
+}
+
 function applyOptimistic(
   tc: { name: string; args: unknown; result: unknown },
   actions: ReturnType<typeof useNetworkStore.getState>['actions'],
 ): void {
-  const parsed = parseToolResult(tc.name, tc.args, tc.result);
-  if (!parsed) return;
-  switch (parsed.kind) {
-    case 'contact_added':
-    case 'contact_updated':
-      actions.upsertContacts([parsed.contact]);
-      break;
-    case 'contact_deleted':
-      actions.removeContact(parsed.contact.id);
-      break;
-    case 'asset_added':
-    case 'asset_updated':
-      actions.upsertAssets([parsed.asset]);
-      break;
-    case 'asset_deleted':
-      actions.removeAsset(parsed.asset.id);
-      break;
-    default:
-      break;
-  }
+  if (tc.name !== 'mutate_sql') return;
+  const rows = extractMutationRows(tc.args, tc.result);
+  if (rows.upsertContacts.length > 0) actions.upsertContacts(rows.upsertContacts);
+  if (rows.upsertAssets.length > 0) actions.upsertAssets(rows.upsertAssets);
+  for (const id of rows.removeContactIds) actions.removeContact(id);
+  for (const id of rows.removeAssetIds) actions.removeAsset(id);
 }
 
 // Re-export for callers that still want a streamingSegments slot —

@@ -1,5 +1,5 @@
 {
-  "name": "@network-ai/web",
+  "name": "@reknowable/web",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -15,9 +15,9 @@
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@network-ai/app": "workspace:*",
-    "@network-ai/types": "workspace:*",
-    "@network-ai/ui": "workspace:*",
+    "@reknowable/app": "workspace:*",
+    "@reknowable/types": "workspace:*",
+    "@reknowable/ui": "workspace:*",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
     "geist": "^1.7.0",

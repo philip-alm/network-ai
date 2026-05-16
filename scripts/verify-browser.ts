@@ -33,7 +33,7 @@ loadDotEnv(join(ROOT, '.env'));
 loadDotEnv(join(ROOT, '.env.test'));
 
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
-const debugDir = join(homedir(), 'Documents', 'network-ai-debug', `browser-${ts}`);
+const debugDir = join(homedir(), 'Documents', 'reknowable-debug', `browser-${ts}`);
 mkdirSync(debugDir, { recursive: true });
 const allLogPath = join(debugDir, 'all.log');
 const allLog = createWriteStream(allLogPath, { flags: 'a' });
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
 
   // 3. Next.js dev.
   console.log('[verify:browser] starting next dev ...');
-  const web = spawn('pnpm', ['-F', '@network-ai/web', 'dev'], { cwd: ROOT, env: process.env });
+  const web = spawn('pnpm', ['-F', '@reknowable/web', 'dev'], { cwd: ROOT, env: process.env });
   fanout(web, 'web');
 
   const cleanup = (): void => {
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
 
     // 5. Run Playwright.
     console.log('\n[verify:browser] running Playwright golden-path.spec.ts ...\n');
-    execSync('pnpm -F @network-ai/web exec playwright test golden-path.spec.ts', {
+    execSync('pnpm -F @reknowable/web exec playwright test golden-path.spec.ts', {
       cwd: ROOT,
       stdio: 'inherit',
       env: {

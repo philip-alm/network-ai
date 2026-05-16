@@ -1,10 +1,10 @@
-# network-ai — Claude Code Ruleset
+# Reknowable — Claude Code Ruleset
 
 This file governs all work in this repository. **Every Claude Code session reads this file first.**
 
 Every module (every directory marked with its own `CLAUDE.md`) extends this file with domain-specific rules. When working inside a module, Claude reads both: this file + the module's `CLAUDE.md`.
 
-The repository ships a personal network mapper: contacts with warmth ratings + asset ledger, queryable by an AI agent, multi-user, web-first with native scaffolded for later store publishing.
+Reknowable is a second brain for everyone in a user's network and everything they can offer: contacts with warmth ratings + asset ledger, queryable by an AI agent for active recall on demand. Multi-user trajectory (organizational memory), web-first with native scaffolded for later store publishing.
 
 ---
 
@@ -29,7 +29,7 @@ Claude has tools to inspect every layer of the system without user help:
 - Run the test suite (`pnpm test`, `pnpm e2e:web`).
 - Inspect database state (`pnpm tsx scripts/db-dump.ts`, `pnpm tsx scripts/db-rls-check.ts`).
 - Read Edge Function logs (`supabase functions logs <name> --tail`).
-- Read agent debug artifacts (`~/Documents/network-ai-debug/<timestamp>-<slug>/`).
+- Read agent debug artifacts (`~/Documents/reknowable-debug/<timestamp>-<slug>/`).
 - Replay LLM turns against captured artifacts (`pnpm tsx scripts/agent-replay.ts <slug>`).
 
 When a feature breaks, Claude reads these artifacts FIRST before speculating. Reading is necessary but never sufficient — every fix ends with the test suite green.
@@ -221,6 +221,36 @@ pnpm verify:all     # runs everything above + every verify:* script
 
 ---
 
+## §7.5. Local-First Workflow (NON-NEGOTIABLE)
+
+**Every change lives on the local stack until the user explicitly says ship it.**
+
+This means:
+
+- **Migrations** apply to LOCAL Supabase only. New `.sql` in `supabase/migrations/` → `pnpm db:up` (= `supabase migration up --local`). **Never** `supabase db push --linked` without an explicit user trigger.
+- **Code** stays on the local branch. `git commit` is fine for snapshotting work. **Never** `git push origin main` without an explicit user trigger — `main` is wired to Vercel auto-deploy, so a push IS a prod deploy.
+- **Edge Functions** run via `supabase functions serve` (already up via `supabase start`). **Never** `supabase functions deploy` without a trigger.
+- **Verification** defaults to local: `verify:db`, `verify:agent-loop`, etc. hit the local stack. `verify:deployed` is the opt-in remote variant.
+
+### Ship triggers
+
+Treat these as "go live now": `ship`, `ship it`, `push to main`, `push to prod`, `deploy`, `production`, `upload to vercel`. Anything else → stay local. When in doubt, ask.
+
+### Ship commands (only when triggered)
+
+```
+pnpm ship:db        # supabase db push --linked      → live Postgres
+pnpm ship:code      # git push origin main           → Vercel auto-deploy
+```
+
+After shipping migrations to remote: PostgREST schema cache may lag. Migration `0011_notify_pgrst.sql` fires `NOTIFY pgrst, 'reload schema'` as a pattern; future migrations that add RPCs should chain a similar notify or be batched with one.
+
+### Why this rule exists
+
+A migration applied to remote-only (or local-only) silently breaks the OTHER side. On 2026-05-16 a `find_anything()` RPC worked on the deployed site but `PGRST202`'d every local turn for an entire dev session — because `supabase migration list` defaulted to remote, hiding the local-vs-remote drift. Local-first eliminates the split: there's exactly one stack to keep in sync at any moment.
+
+---
+
 ## §8. Debug Artifacts
 
 Every agent turn writes a folder Claude can read to diagnose without running the UI.
@@ -228,7 +258,7 @@ Every agent turn writes a folder Claude can read to diagnose without running the
 ### Per-turn capture
 
 ```
-~/Documents/network-ai-debug/<timestamp>-<slug>/
+~/Documents/reknowable-debug/<timestamp>-<slug>/
 ├── metadata.json              # user_id, thread_id, transcript, outcome
 ├── timeline.jsonl             # every event with wall-clock timestamp
 ├── llm/turn-NN/
@@ -255,7 +285,7 @@ Debug capture is best-effort — writes never fail the live turn.
 
 When the user reports a bug:
 
-1. Read the latest trace in `~/Documents/network-ai-debug/`
+1. Read the latest trace in `~/Documents/reknowable-debug/`
 2. Check `timeline.jsonl` for tool calls
 3. Check `llm/turn-NN/request.json` for what the LLM actually saw
 4. Check `db_state/before.sql` for state at turn start
@@ -331,7 +361,7 @@ The module's only export surface (re-exported from `src/index.ts`). Anything not
 What this module depends on, and why each one is justified:
 
 - `<package>` — reason
-- `@network-ai/<workspace-package>` — reason
+- `@reknowable/<workspace-package>` — reason
 
 ## What's banned in this module
 
@@ -373,3 +403,26 @@ Append-only log of "why this is shaped this way", dated entries.
 - When in doubt, build the user a verification script.
 - When in doubt about whether to do the thorough thing or the fast thing: do the thorough thing.
 - When in doubt about whether the user will know what to do: assume they won't, and make the next step obvious.
+
+---
+
+## §13. Design Context
+
+Two files at the repo root govern visual + strategic design. Read them before any UI work; they are the source of truth for what gets shipped.
+
+- **[PRODUCT.md](./PRODUCT.md)** — strategic: register, users, product purpose, brand personality, anti-references, design principles, accessibility.
+- **[DESIGN.md](./DESIGN.md)** — visual: full token system (Operator's Study, deep navy + warm cream + Brand Amber from the logo), typography (Geist Sans + Mono + Wordmark), elevation (flat + hairline), components, motion vocabulary, icon registry, signature moments, do's and don'ts. Stitch-compatible YAML frontmatter + six-section spec.
+- **[BRAND.md](./BRAND.md)** — voice: how the agent talks, how confirmations are phrased, error message patterns, copy do's-and-don'ts. Read before writing any UI string or agent prompt.
+- **[.impeccable/design.json](./.impeccable/design.json)** — machine-readable sidecar: tonal ramps, shadows, motion tokens, icon registry, component HTML/CSS snippets, narrative rules.
+
+**Register:** product (app UI; design serves the product).
+
+**The five design principles** (full prose in PRODUCT.md):
+
+1. Type carries the design — reach for a different weight before reaching for decoration.
+2. One pane never pushes the other — 50/50 split, panes own their own scroll, page is fixed-height.
+3. Optimistic by default — the right pane reflects agent actions before the server confirms.
+4. Every AI action is reviewable and revertable — structured tool-call cards with Jump-to + Undo.
+5. Motion explains — never decorative; transform + opacity only, ≤ 250ms, ease-out.
+
+**The Operator's Study Palette** (one-liner): deep navy surfaces (`#0D1729`), warm cream ink (`#F4F5F1`), Brand Amber accent (`#CD9B5B`), warm graphite for soft surfaces (`#242324`), warm grey for muted text (`#A5A29D`). All five from the Reknowable logo. Committed across the app. Brand mark is `<Wordmark/>` ([●] reknowable, lowercase, Geist Sans 500). One chromatic accent only (amber, hue ~75); warmth ramp anchors at amber and fades to navy. No drop shadows at rest. No em dashes in UI copy. lucide-react icons only, no custom SVGs.

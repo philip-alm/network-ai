@@ -1,6 +1,6 @@
-# @network-ai/native
+# @reknowable/native
 
-Expo SDK 54 native app shell using Expo Router. Targets iOS + Android. Thin: routing, deep linking, native auth callbacks. All screens come from `@network-ai/app`.
+Expo SDK 54 native app shell using Expo Router. Targets iOS + Android. Thin: routing, deep linking, native auth callbacks. All screens come from `@reknowable/app`.
 
 Requires a dev build (Expo Go won't work because of `@react-native-google-signin/google-signin`).
 
@@ -18,11 +18,11 @@ Routes match the web app structure (parity is enforced):
 - `expo-secure-store` — session storage
 - `expo-apple-authentication` (Phase 2)
 - `@react-native-google-signin/google-signin` (Phase 2)
-- `@network-ai/app` — every screen
+- `@reknowable/app` — every screen
 
 ## What's banned in this app
 
-- Business logic in `app/` — components live in `@network-ai/app`
+- Business logic in `app/` — components live in `@reknowable/app`
 - Importing from `apps/web/`
 - `@expo/vector-icons` style ad-hoc dependencies — discuss before adding
 
@@ -33,7 +33,7 @@ Routes match the web app structure (parity is enforced):
 
 ### How Claude verifies this app
 
-1. `pnpm -F @network-ai/native typecheck` — green
+1. `pnpm -F @reknowable/native typecheck` — green
 2. `pnpm verify:scaffold` (Phase 0) — typecheck succeeds against shared package
 3. `pnpm verify:native-smoke` (Phase 7) — Detox iOS simulator boot
 
@@ -44,4 +44,4 @@ Routes match the web app structure (parity is enforced):
 
 ## Recent design decisions
 
-- 2026-05-15: scaffold created. Boots via `expo start` against a dev build; `app/index.tsx` imports from `@network-ai/app` to prove monorepo wiring.
+- 2026-05-15: scaffold created. Boots via `expo start` against a dev build; `app/index.tsx` imports from `@reknowable/app` to prove monorepo wiring.

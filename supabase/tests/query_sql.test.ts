@@ -4,7 +4,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { testUserHarness, seedFactory, type TestUser } from '@network-ai/test-utils';
+import { testUserHarness, seedFactory, type TestUser } from '@reknowable/test-utils';
 
 describe('query_sql', () => {
   let alice: TestUser;

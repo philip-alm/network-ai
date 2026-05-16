@@ -1,7 +1,7 @@
 /**
- * @network-ai/types — shared types across the workspace.
+ * @reknowable/types — shared types across the workspace.
  *
- * `./db.ts` is regenerated from Supabase via `pnpm -F @network-ai/types generate`.
+ * `./db.ts` is regenerated from Supabase via `pnpm -F @reknowable/types generate`.
  * Hand-written types live in this file or sibling files.
  */
 

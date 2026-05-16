@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
-const reportDir = join(homedir(), 'Documents', 'network-ai-debug', `browser-${ts}`);
+const reportDir = join(homedir(), 'Documents', 'reknowable-debug', `browser-${ts}`);
 
 export default defineConfig({
   testDir: './tests',

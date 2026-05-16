@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { HomeScreen, getBrowserSupabase } from '@network-ai/app';
+import { HomeScreen, getBrowserSupabase } from '@reknowable/app';
 
 export function HomeClient({ userId, userEmail }: { userId: string; userEmail: string }) {
   const router = useRouter();

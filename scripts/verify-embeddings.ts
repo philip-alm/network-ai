@@ -116,8 +116,8 @@ async function main(): Promise<void> {
         headers: {
           Authorization: `Bearer ${OPENROUTER_KEY}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://network-ai.app',
-          'X-Title': 'network-ai',
+          'HTTP-Referer': 'https://reknowable.app',
+          'X-Title': 'reknowable',
         },
         body: JSON.stringify({ model: EMBEDDING_MODEL, input: texts }),
       });

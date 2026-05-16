@@ -1,6 +1,6 @@
-# network-ai — Platform Plan (post-MVP hardening)
+# reknowable — Platform Plan (post-MVP hardening)
 
-This document is the canonical plan for taking network-ai from "the agent works
+This document is the canonical plan for taking reknowable from "the agent works
 end-to-end" (current state, commits `c7d84cc` → `353679d`) to an **enterprise-
 grade, reliable experience** the user can put in front of anyone.
 
@@ -316,7 +316,7 @@ describe('tools.mutate_sql', () => {
 });
 ```
 
-These use `@network-ai/test-utils`'s `testUserHarness` against a local
+These use `@reknowable/test-utils`'s `testUserHarness` against a local
 Supabase — they fail in <2s if RLS or the SQL helper functions drift.
 
 ### 4.4 Result inlining (the LLM sees the error verbatim)
@@ -451,7 +451,7 @@ total tool calls in a turn. `grep '"error"' timeline.jsonl` → every failure.
 ### 7.3 Per-turn folder layout
 
 ```
-~/Documents/network-ai-debug/<iso-ts>-<adjective>-<adjective>-<noun>/
+~/Documents/reknowable-debug/<iso-ts>-<adjective>-<adjective>-<noun>/
 ├── metadata.json              # user_id, thread_id, transcript, status, settings
 ├── settings.json              # MODEL_ID, OPENROUTER vs direct, env snapshot
 ├── timings.json               # durations_ms.{first_token, agent_total, tool_total}
@@ -790,7 +790,7 @@ The platform is done — ready to put in front of anyone — when ALL of:
 4. Every public symbol in `packages/app/src/lib/` has a test that fails on
    broken behavior.
 5. The debug recorder writes byte-exact LLM I/O for every turn. A user reports
-   a bug → I read one folder under `~/Documents/network-ai-debug/` → I know
+   a bug → I read one folder under `~/Documents/reknowable-debug/` → I know
    what happened, no questions to ask the user.
 6. `pnpm agent:replay <slug>` can replay any production-recorded turn against
    any local code change.

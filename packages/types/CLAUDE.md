@@ -1,6 +1,6 @@
-# @network-ai/types
+# @reknowable/types
 
-Shared TypeScript types. Source of truth: generated from Supabase via `pnpm -F @network-ai/types generate`. Hand-written types only for non-DB concepts (agent tool I/O, debug artifact schemas).
+Shared TypeScript types. Source of truth: generated from Supabase via `pnpm -F @reknowable/types generate`. Hand-written types only for non-DB concepts (agent tool I/O, debug artifact schemas).
 
 ## Public API
 
@@ -23,9 +23,9 @@ Type-only tests via `expectTypeOf` + smoke tests asserting `Database` is non-emp
 
 ### How Claude verifies this module
 
-1. `pnpm -F @network-ai/types test` — green
-2. `pnpm -F @network-ai/types check` — green
-3. After `pnpm -F @network-ai/types generate`: `git diff src/db.ts` is reviewed before commit
+1. `pnpm -F @reknowable/types test` — green
+2. `pnpm -F @reknowable/types check` — green
+3. After `pnpm -F @reknowable/types generate`: `git diff src/db.ts` is reviewed before commit
 
 ## Non-goals
 

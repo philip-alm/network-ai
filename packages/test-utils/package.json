@@ -1,5 +1,5 @@
 {
-  "name": "@network-ai/test-utils",
+  "name": "@reknowable/test-utils",
   "version": "0.0.0",
   "private": true,
   "main": "./src/index.ts",
@@ -15,7 +15,7 @@
     "test:fast": "vitest run --reporter=dot"
   },
   "dependencies": {
-    "@network-ai/types": "workspace:*",
+    "@reknowable/types": "workspace:*",
     "@supabase/supabase-js": "^2.50.0"
   },
   "devDependencies": {

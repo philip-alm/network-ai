@@ -13,6 +13,9 @@ import {
   Database,
   ArrowUpRight,
   ChevronDown,
+  SlidersHorizontal,
+  Pin,
+  Eraser,
 } from 'lucide-react';
 import { parseToolResult, type ToolCardKind } from '../../lib/agent';
 import { useNetworkStore } from '../../lib/store';
@@ -69,7 +72,7 @@ export function ToolCallCard({ call }: { call: AgentToolInvocation }) {
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       className="space-y-1"
     >
-      <div className="flex items-start gap-1">
+      <div className="flex items-center gap-1">
         <div className="min-w-0 flex-1">
           <CardContent parsed={parsed} call={call} jumpTo={jumpTo} />
         </div>
@@ -80,7 +83,11 @@ export function ToolCallCard({ call }: { call: AgentToolInvocation }) {
             aria-expanded={expanded}
             aria-label={expanded ? 'Hide details' : 'Show details'}
             data-testid="tool-expand-toggle"
-            className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-faint transition-colors hover:bg-surface-soft hover:text-muted"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-faint transition-all duration-[140ms] hover:bg-surface-soft hover:text-muted active:scale-[0.9]"
+            style={{
+              transitionTimingFunction: 'var(--ease-out)',
+              WebkitTapHighlightColor: 'transparent',
+            }}
           >
             <ChevronDown
               size={12}
@@ -125,19 +132,19 @@ function CardContent({
       <div className="inline-flex items-center gap-2 rounded-md bg-surface-soft px-2.5 py-1 text-xs">
         <CheckCircle2 size={12} className="text-muted" aria-hidden />
         <span className="mono text-muted">{call.name}</span>
-        {timing ? <span className="mono text-faint">· {timing}</span> : null}
+        {timing ? <span className="mono text-[11px] text-faint">· {timing}</span> : null}
       </div>
     );
   }
 
   if (parsed.kind === 'error') {
     return (
-      <div className="flex items-start gap-2.5 rounded-md border border-danger/20 bg-danger/5 px-3 py-2 text-xs">
+      <div className="flex items-start gap-2.5 rounded-md border border-danger/20 bg-danger/5 px-3 py-2 text-sm">
         <AlertCircle size={14} className="mt-0.5 shrink-0 text-danger" aria-hidden />
-        <div className="space-y-0.5">
+        <div className="min-w-0 space-y-0.5">
           <div className="font-medium text-danger">{call.name} failed</div>
-          <div className="text-fg/80">{parsed.error}</div>
-          {parsed.hint ? <div className="text-muted">{parsed.hint}</div> : null}
+          <div className="text-xs text-muted">{parsed.error}</div>
+          {parsed.hint ? <div className="text-xs text-muted">{parsed.hint}</div> : null}
         </div>
       </div>
     );
@@ -154,7 +161,7 @@ function CardContent({
             {parsed.count} {parsed.count === 1 ? 'row' : 'rows'}
           </span>
         </span>
-        {timing ? <span className="mono text-faint">· {timing}</span> : null}
+        {timing ? <span className="mono text-[11px] text-faint">· {timing}</span> : null}
       </div>
     );
   }
@@ -166,7 +173,7 @@ function CardContent({
       <div className="inline-flex max-w-full items-center gap-2 rounded-md bg-surface-soft px-2.5 py-1 text-xs">
         <Search size={12} className="shrink-0 text-muted" aria-hidden />
         <span className="min-w-0 truncate text-muted">
-          <span className="text-fg/85">Found</span>{' '}
+          <span className="text-fg">Found</span>{' '}
           <span className="mono text-fg">
             {parsed.contactsCount} {parsed.contactsCount === 1 ? 'contact' : 'contacts'}
             {parsed.assetsCount > 0 ? (
@@ -181,7 +188,7 @@ function CardContent({
           ) : previews.length > 0 ? (
             <>
               {' '}
-              <span className="text-fg/85">
+              <span className="text-fg">
                 {previews.slice(0, 3).join(', ')}
                 {previews.length < total ? (
                   <span className="text-faint"> +{total - previews.length} more</span>
@@ -190,7 +197,38 @@ function CardContent({
             </>
           ) : null}
         </span>
-        {timing ? <span className="mono text-faint">· {timing}</span> : null}
+        {timing ? <span className="mono text-[11px] text-faint">· {timing}</span> : null}
+      </div>
+    );
+  }
+
+  if (parsed.kind === 'panel_set') {
+    const pinnedCount = parsed.pinnedContactIds.length + parsed.pinnedAssetIds.length;
+    const summary = panelSetSummary(parsed.facets, pinnedCount, parsed.search, parsed.view);
+    return (
+      <div className="flex items-center gap-2.5 rounded-md bg-surface-soft px-3 py-2 text-sm shadow-hairline-soft">
+        <span
+          aria-hidden
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent"
+        >
+          {pinnedCount > 0 ? <Pin size={11} /> : <SlidersHorizontal size={11} />}
+        </span>
+        <div className="min-w-0 flex-1 truncate text-fg">
+          <span className="text-muted">{summary.verb}</span>{' '}
+          <span className="font-medium">{summary.subject}</span>
+          {summary.detail ? <span className="text-muted"> · {summary.detail}</span> : null}
+        </div>
+        {timing ? <span className="mono text-[11px] text-faint">{timing}</span> : null}
+      </div>
+    );
+  }
+
+  if (parsed.kind === 'panel_cleared') {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-md bg-surface-soft px-2.5 py-1 text-xs">
+        <Eraser size={12} className="shrink-0 text-muted" aria-hidden />
+        <span className="text-muted">Cleared filters and pins.</span>
+        {timing ? <span className="mono text-[11px] text-faint">· {timing}</span> : null}
       </div>
     );
   }
@@ -207,7 +245,7 @@ function CardContent({
           {action.detail ? <span className="text-muted"> · {action.detail}</span> : null}
         </div>
       </div>
-      {timing ? <span className="mono text-xs text-faint">{timing}</span> : null}
+      {timing ? <span className="mono text-[11px] text-faint">{timing}</span> : null}
       {action.jumpId ? (
         <button
           type="button"
@@ -215,7 +253,11 @@ function CardContent({
             e.stopPropagation();
             jumpTo(action.jumpId!);
           }}
-          className="inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-bg hover:text-accent"
+          className="inline-flex shrink-0 items-center gap-1 rounded-sm px-2 py-1 text-xs text-muted transition-all duration-[140ms] hover:bg-bg hover:text-accent active:scale-[0.95]"
+          style={{
+            transitionTimingFunction: 'var(--ease-out)',
+            WebkitTapHighlightColor: 'transparent',
+          }}
         >
           Jump to
           <ArrowUpRight size={11} aria-hidden />
@@ -248,7 +290,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
   return (
-    <pre className="mono overflow-x-auto rounded-sm bg-surface-soft px-2.5 py-1.5 text-[11px] leading-relaxed text-fg/85">
+    <pre className="mono overflow-x-auto rounded-sm bg-surface-soft px-2.5 py-1.5 text-[11px] leading-relaxed text-fg">
       {children}
     </pre>
   );
@@ -299,7 +341,7 @@ function ArgsBlock({ name, args }: { name: string; args: unknown }) {
               {a.queries.map((q, i) => (
                 <span
                   key={i}
-                  className="mono rounded-sm bg-surface-soft px-1.5 py-0.5 text-[11px] text-fg/85"
+                  className="mono rounded-sm bg-surface-soft px-1.5 py-0.5 text-[11px] text-fg"
                 >
                   {q}
                 </span>
@@ -329,7 +371,7 @@ function ArgsBlock({ name, args }: { name: string; args: unknown }) {
                   className="mono inline-flex items-baseline gap-1 rounded-sm bg-surface-soft px-1.5 py-0.5 text-[11px]"
                 >
                   <span className="text-faint">{k}:</span>
-                  <span className="text-fg/85">{v}</span>
+                  <span className="text-fg">{v}</span>
                 </span>
               ))}
             </div>
@@ -454,7 +496,7 @@ function HitRow({
 }) {
   const metaText = meta.filter(Boolean).join(' · ');
   return (
-    <li className="flex items-baseline gap-2 truncate text-fg/90">
+    <li className="flex items-baseline gap-2 truncate text-fg">
       <span className="font-medium">{name}</span>
       {metaText ? <span className="truncate text-muted">{metaText}</span> : null}
       {matched && matched.length > 0 ? (
@@ -508,22 +550,78 @@ function runningCopy(name: string, args: unknown): string {
       (a.regex ? `/${truncate(a.regex, 32)}/` : '') ||
       (a.city ? `in ${a.city}` : '') ||
       (a.any_tags?.length ? `tags: ${a.any_tags.slice(0, 2).join(', ')}` : '');
-    return hint ? `Searching ${hint}…` : 'Searching network…';
+    return hint ? `Searching ${hint}…` : 'Searching the notebook…';
   }
-  if (name === 'query_sql') return 'Reading database…';
+  if (name === 'query_sql') {
+    const sql = ((args as { sql?: string } | undefined)?.sql ?? '').trim().toLowerCase();
+    const noun = sqlTableNoun(sql);
+    return noun ? `Reading ${noun}…` : 'Reading…';
+  }
   if (name === 'mutate_sql') {
     const sql = ((args as { sql?: string } | undefined)?.sql ?? '').trim().toLowerCase();
-    if (sql.startsWith('insert')) return 'Writing new row…';
-    if (sql.startsWith('update') && sql.includes('deleted_at')) return 'Removing row…';
-    if (sql.startsWith('update')) return 'Updating row…';
-    if (sql.startsWith('delete')) return 'Removing row…';
-    return 'Writing…';
+    const noun = sqlTableNoun(sql) ?? 'row';
+    if (sql.startsWith('insert')) return `Adding ${noun}…`;
+    if (sql.startsWith('update') && sql.includes('deleted_at = null')) return `Restoring ${noun}…`;
+    if (sql.startsWith('update') && sql.includes('deleted_at')) return `Removing ${noun}…`;
+    if (sql.startsWith('update')) return `Updating ${noun}…`;
+    if (sql.startsWith('delete')) return `Removing ${noun}…`;
+    return `Saving ${noun}…`;
   }
   return `${name}…`;
 }
 
+/**
+ * Infer the singular table noun from a SQL string for use in running-copy.
+ * Returns "contact" / "asset" when we can tell, null otherwise.
+ */
+function sqlTableNoun(sql: string): string | null {
+  if (/\bcontacts\b/.test(sql)) return 'contact';
+  if (/\bassets\b/.test(sql)) return 'asset';
+  return null;
+}
+
 function truncate(s: string, max: number): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+/**
+ * Build the headline for a set_panel card: verb + subject + detail.
+ * The subject should answer "what did Reknowable do to the panel?" in
+ * three or four words. We prefer the most concrete signal available —
+ * pins > search > facets > view-only — because that's what carries the
+ * intent of the action.
+ */
+function panelSetSummary(
+  facets: string[],
+  pinnedCount: number,
+  search: string | null,
+  view: 'contacts' | 'both' | 'assets' | null,
+): { verb: string; subject: string; detail: string } {
+  if (pinnedCount > 0) {
+    const noun = pinnedCount === 1 ? 'pick' : 'picks';
+    const subject = `${pinnedCount} ${noun}`;
+    const detail = facets.length > 0 ? facets.slice(0, 3).join(', ') : '';
+    return { verb: 'Pinned', subject, detail };
+  }
+  if (search) {
+    return {
+      verb: 'Searched',
+      subject: `"${truncate(search, 36)}"`,
+      detail: facets.length > 0 ? facets.slice(0, 3).join(', ') : '',
+    };
+  }
+  if (facets.length > 0) {
+    return {
+      verb: 'Filtered to',
+      subject: facets.slice(0, 3).join(', '),
+      detail: facets.length > 3 ? `+${facets.length - 3} more` : '',
+    };
+  }
+  if (view) {
+    const label = view === 'both' ? 'contacts and assets' : view;
+    return { verb: 'Showing', subject: label, detail: '' };
+  }
+  return { verb: 'Updated', subject: 'panel', detail: '' };
 }
 
 function actionFor(parsed: ToolCardKind) {
