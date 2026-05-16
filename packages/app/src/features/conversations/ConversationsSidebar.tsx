@@ -1,10 +1,25 @@
 'use client';
 
 import { useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { Plus, X } from 'lucide-react';
 import { WithTooltip, Kbd } from '../ui';
+import { useCascadeIn } from '../contacts/useCascadeIn';
 import type { Conversation } from './useConversations';
+
+/** One-shot cascade wrapper for a conversation row. */
+function CascadeConversation({
+  id,
+  index,
+  children,
+}: {
+  id: string;
+  index: number;
+  children: React.ReactNode;
+}) {
+  const style = useCascadeIn(id, index);
+  return <li style={style}>{children}</li>;
+}
 
 export type ConversationsSidebarProps = {
   conversations: Conversation[];
@@ -107,22 +122,15 @@ function ConversationGroup({
       <h3 className="px-2 pb-1 text-[11px] font-medium text-faint">{label}</h3>
       <ul className="space-y-px">
         <AnimatePresence initial={false}>
-          {items.map((c) => (
-            <motion.li
-              key={c.id}
-              layout="position"
-              initial={{ opacity: 0, x: -4 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -4 }}
-              transition={{ duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
-            >
+          {items.map((c, i) => (
+            <CascadeConversation key={c.id} id={`conv-${c.id}`} index={i}>
               <ConversationRow
                 conversation={c}
                 selected={c.id === currentId}
                 onSelect={() => onSelect(c.id)}
                 onRemove={() => onRemove(c.id)}
               />
-            </motion.li>
+            </CascadeConversation>
           ))}
         </AnimatePresence>
       </ul>

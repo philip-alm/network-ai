@@ -11,10 +11,37 @@
     --font-mono:
       var(--font-geist-mono), ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 
-    /* — Easing curves (Emil's strong custom curves) — */
-    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    /* ─────────────────────────────────────────────────────────────
+       MOTION DESIGN TOKENS  (see MOTION.md for the language)
+       ─────────────────────────────────────────────────────────────
+       Two curves cover 90% of the system. Anything outside this pair
+       needs a written justification.
+       --ease-snappy : entries, hover, interactions, lists. The signature.
+       --ease-drawer : modals, sheets, drawer slides only.
+       --ease-out / --ease-in-out are kept as aliases so legacy call sites
+       keep working while we migrate. */
+    --ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
     --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+    --ease-out: var(--ease-snappy);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+    /* Five duration tokens. Anything outside these reads as "wrong size."
+       Use --dur-instant for color/hover (almost imperceptible).
+       Use --dur-snap for buttons, small reveals, dropdowns.
+       Use --dur-settle for per-item cascade, fade-in, height transitions.
+       Use --dur-arrive for modals, sheets, drawer slides.
+       Use --dur-moment for the rare theater beat (count-up, first-contact). */
+    --dur-instant: 120ms;
+    --dur-snap:    180ms;
+    --dur-settle:  220ms;
+    --dur-arrive:  320ms;
+    --dur-moment:  400ms;
+
+    /* Stagger intervals between siblings in a cascade.
+       --stagger-tight  for content rows when we DO animate (rare).
+       --stagger-relaxed for hero copy (title → body → prompts). */
+    --stagger-tight:   25ms;
+    --stagger-relaxed: 40ms;
 
     /* ─────────────────────────────────────────────────────────────
        LIGHT theme (default) — Operator Light.
@@ -199,6 +226,35 @@
   @keyframes reknowable-ring-spin {
     from { transform: rotate(-90deg); }
     to   { transform: rotate(270deg); }
+  }
+  /* One-shot cascade for list items (rows, starter prompts, hero copy).
+     Three composed transforms — opacity + Y settle + tiny scale — all
+     driven on the compositor (no layout). The 0.985→1 scale is what
+     gives items their "pop into place" character without crossing into
+     bouncy: combined with the strong ease-out curve, items settle like
+     they're snapping to a magnet, not arriving on a parade float. */
+  @keyframes reknowable-cascade-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  /* Surface-level fade for panels / empty states. Same shape as the
+     cascade but a touch larger Y to differentiate surface arrivals
+     from items inside them. */
+  @keyframes reknowable-surface-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px) scale(0.99);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     [style*='reknowable-skeleton'],

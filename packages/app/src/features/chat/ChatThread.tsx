@@ -7,6 +7,7 @@ import { ChatComposer } from './ChatComposer';
 import { useStickToBottom } from './useStickToBottom';
 import type { AgentPhase } from '../../lib/agent';
 import type { QueuedMessage } from './useAgentLoop';
+import { useCascadeIn } from '../contacts/useCascadeIn';
 
 export type ChatThreadProps = {
   messages: ChatMessage[];
@@ -177,44 +178,74 @@ export function ChatThread({
 }
 
 function EmptyState({ onPick }: { onPick: (text: string) => void | Promise<void> }) {
+  // Each piece gets its own cascade index, so the empty state arrives
+  // top-down: title (0) → body (1) → three starter prompts (2-4). The
+  // container itself has no animation — it's the parent stage.
+  const titleStyle = useCascadeIn('chat-empty-title', 0);
+  const bodyStyle = useCascadeIn('chat-empty-body', 1);
   return (
-    <div className="mt-8 space-y-10 animate-fade-in">
+    <div className="mt-8 space-y-10">
       <div className="space-y-4">
-        <h1 className="text-[2rem] font-medium leading-[1.08] tracking-[-0.028em]">
+        <h1
+          className="text-[2rem] font-medium leading-[1.08] tracking-[-0.028em]"
+          style={titleStyle}
+        >
           <span className="text-fg">Add anyone you know.</span>{' '}
           <span className="text-muted">I'll remember everything that matters.</span>
         </h1>
-        <p className="max-w-[52ch] text-[15px] leading-relaxed text-muted">
+        <p className="max-w-[52ch] text-[15px] leading-relaxed text-muted" style={bodyStyle}>
           Just tell me about a contact, a city, or what they do. Ask anything later — I'll surface
           the right person.
         </p>
       </div>
       <div className="space-y-1.5">
-        {STARTER_PROMPTS.map((p) => (
-          <button
+        {STARTER_PROMPTS.map((p, i) => (
+          <StarterPromptItem
             key={p.text}
-            type="button"
-            onClick={() => onPick(p.text)}
-            data-testid="starter-prompt"
-            className="group flex w-full items-center gap-2.5 rounded-md border border-border-soft bg-surface-soft/40 px-3 py-2.5 text-left text-[13px] text-muted transition-all duration-[160ms] hover:border-accent/40 hover:bg-surface-soft hover:text-fg focus-visible:border-accent/40 focus-visible:bg-surface-soft focus-visible:text-fg active:scale-[0.99]"
-            style={{
-              transitionTimingFunction: 'var(--ease-out)',
-              WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            <p.Icon
-              size={13}
-              aria-hidden
-              className="shrink-0 text-faint transition-colors duration-[160ms] group-hover:text-accent"
-            />
-            <span className="min-w-0 flex-1 truncate">{p.text}</span>
-            <span className="font-mono text-xs text-faint opacity-0 transition-opacity duration-[160ms] group-hover:opacity-100">
-              ↵
-            </span>
-          </button>
+            prompt={p}
+            // Offset by 2 so prompts follow the title + body in the
+            // overall cascade sequence (title=0, body=1, prompts=2..4).
+            index={i + 2}
+            onPick={onPick}
+          />
         ))}
       </div>
     </div>
+  );
+}
+
+function StarterPromptItem({
+  prompt,
+  index,
+  onPick,
+}: {
+  prompt: StarterPrompt;
+  index: number;
+  onPick: (text: string) => void | Promise<void>;
+}) {
+  const cascadeStyle = useCascadeIn(`starter-${prompt.text}`, index);
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(prompt.text)}
+      data-testid="starter-prompt"
+      className="group flex w-full items-center gap-2.5 rounded-md border border-border-soft bg-surface-soft/40 px-3 py-2.5 text-left text-[13px] text-muted transition-colors duration-[160ms] hover:border-accent/40 hover:bg-surface-soft hover:text-fg focus-visible:border-accent/40 focus-visible:bg-surface-soft focus-visible:text-fg active:scale-[0.99]"
+      style={{
+        transitionTimingFunction: 'var(--ease-out)',
+        WebkitTapHighlightColor: 'transparent',
+        ...cascadeStyle,
+      }}
+    >
+      <prompt.Icon
+        size={13}
+        aria-hidden
+        className="shrink-0 text-faint transition-colors duration-[160ms] group-hover:text-accent"
+      />
+      <span className="min-w-0 flex-1 truncate">{prompt.text}</span>
+      <span className="font-mono text-xs text-faint opacity-0 transition-opacity duration-[160ms] group-hover:opacity-100">
+        ↵
+      </span>
+    </button>
   );
 }
 

@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "1.0.39",
+    "@floating-ui/react": "^0.27.19",
     "@reknowable/types": "workspace:*",
     "@reknowable/ui": "workspace:*",
     "@supabase/ssr": "^0.6.1",

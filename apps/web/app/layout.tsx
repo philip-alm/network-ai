@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
-import { OfflineBanner } from '@reknowable/app';
+import { OfflineBanner, ClickInspector } from '@reknowable/app';
 import './globals.css';
 
 export const metadata = {
@@ -35,13 +35,24 @@ const THEME_BOOTSTRAP = `(() => {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    /* suppressHydrationWarning: the inline bootstrap script below sets
+       `data-theme` on <html> from localStorage before React paints. The
+       server can't know the stored value, so the client's <html> attrs
+       legitimately differ from the SSR-ed markup. Hydration mismatch
+       warning here is expected and benign — suppress so it doesn't
+       drown out real warnings in the console. */
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
       </head>
       <body>
         {children}
         <OfflineBanner />
+        <ClickInspector />
       </body>
     </html>
   );

@@ -373,7 +373,7 @@ For deletes: confirm in chat first, then execute on user "yes". Always
 soft-delete by setting deleted_at. Never hard DELETE.
 `;
 
-export const MODEL_ID = 'google/gemini-3-flash-preview';
+export const MODEL_ID = '~google/gemini-pro-latest';
 
 export const TOOL_NAMES = ['query_sql', 'mutate_sql', 'find', 'set_panel', 'clear_panel'] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];

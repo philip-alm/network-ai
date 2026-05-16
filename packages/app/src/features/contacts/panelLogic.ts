@@ -171,6 +171,92 @@ export function getOwnAssets(map: Map<string, Asset[]>, contactId: string): Asse
   return map.get(contactId) ?? EMPTY_ASSETS;
 }
 
+// ─── Sort comparators ────────────────────────────────────────────────
+//
+// Every sort is a CHAIN of comparators: the primary key (what the user
+// asked for), then one or more tiebreakers so two rows with the same
+// primary value never swap places randomly between renders. The last
+// link in every chain is `byIdAsc` — guarantees total ordering even
+// when names + dates collide (bulk inserts, identical entries).
+//
+// Null/missing values always sort LAST regardless of direction. That's
+// the intuitive read: "I don't know" should never outrank "I do."
+
+type Cmp<T> = (a: T, b: T) => number;
+
+/** Compose comparators left-to-right; returns the first non-zero result. */
+function chain<T>(...cmps: Cmp<T>[]): Cmp<T> {
+  return (a, b) => {
+    for (const cmp of cmps) {
+      const v = cmp(a, b);
+      if (v !== 0) return v;
+    }
+    return 0;
+  };
+}
+
+/** Locale-aware, case-insensitive collator. One instance reused. */
+const COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' });
+
+/** Compare a nullable scalar — nulls always sort last, regardless of direction. */
+function nullableNumber<T>(get: (x: T) => number | null | undefined, dir: 'asc' | 'desc'): Cmp<T> {
+  return (a, b) => {
+    const av = get(a);
+    const bv = get(b);
+    const aNull = av == null;
+    const bNull = bv == null;
+    if (aNull && bNull) return 0;
+    if (aNull) return 1;
+    if (bNull) return -1;
+    return dir === 'asc' ? av - bv : bv - av;
+  };
+}
+
+function nullableString<T>(get: (x: T) => string | null | undefined, dir: 'asc' | 'desc'): Cmp<T> {
+  return (a, b) => {
+    const av = get(a);
+    const bv = get(b);
+    const aEmpty = !av;
+    const bEmpty = !bv;
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;
+    if (bEmpty) return -1;
+    return dir === 'asc' ? COLLATOR.compare(av, bv) : COLLATOR.compare(bv, av);
+  };
+}
+
+// Contact comparators ----------------------------------------------------
+const contactByName = (dir: 'asc' | 'desc'): Cmp<Contact> =>
+  nullableString<Contact>((c) => c.name, dir);
+const contactByUpdated = (dir: 'asc' | 'desc'): Cmp<Contact> =>
+  nullableString<Contact>((c) => c.updated_at ?? null, dir);
+const contactByCreated = (dir: 'asc' | 'desc'): Cmp<Contact> =>
+  nullableString<Contact>((c) => c.created_at ?? null, dir);
+const contactByWarmth = (dir: 'asc' | 'desc'): Cmp<Contact> =>
+  nullableNumber<Contact>((c) => c.warmth, dir);
+const contactByAssetCount = (counts: Map<string, number>, dir: 'asc' | 'desc'): Cmp<Contact> =>
+  nullableNumber<Contact>((c) => counts.get(c.id) ?? 0, dir);
+const contactByIdAsc: Cmp<Contact> = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+// Asset comparators ------------------------------------------------------
+const assetByName = (dir: 'asc' | 'desc'): Cmp<Asset> => nullableString<Asset>((a) => a.name, dir);
+const assetByUpdated = (dir: 'asc' | 'desc'): Cmp<Asset> =>
+  nullableString<Asset>((a) => a.updated_at ?? null, dir);
+const assetByCreated = (dir: 'asc' | 'desc'): Cmp<Asset> =>
+  nullableString<Asset>((a) => a.created_at ?? null, dir);
+const assetByIdAsc: Cmp<Asset> = (a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * applyContactSort — pure, stable, total ordering.
+ *
+ * Tiebreak strategy (in order):
+ *   1. The primary key the user picked.
+ *   2. Name (asc) — alphabetical fallback so equal primaries don't shuffle.
+ *      Default sort says "warmth desc, name asc" → warmest first, then
+ *      alphabetical within each warmth tier.
+ *   3. ID (asc) — final guarantee of total ordering, never observable
+ *      to the user but kills any remaining flicker.
+ */
 export function applyContactSort(
   contacts: Contact[],
   mode: ContactSortMode,
@@ -179,50 +265,50 @@ export function applyContactSort(
   const arr = contacts.slice();
   switch (mode) {
     case 'updated_desc':
-      arr.sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+      arr.sort(chain(contactByUpdated('desc'), contactByName('asc'), contactByIdAsc));
       break;
     case 'created_desc':
-      arr.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+      arr.sort(chain(contactByCreated('desc'), contactByName('asc'), contactByIdAsc));
       break;
     case 'name_asc':
-      arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+      arr.sort(chain(contactByName('asc'), contactByCreated('desc'), contactByIdAsc));
       break;
     case 'name_desc':
-      arr.sort((a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: 'base' }));
+      arr.sort(chain(contactByName('desc'), contactByCreated('desc'), contactByIdAsc));
       break;
     case 'warmth_asc':
-      arr.sort(
-        (a, b) => (a.warmth ?? Number.POSITIVE_INFINITY) - (b.warmth ?? Number.POSITIVE_INFINITY),
-      );
+      arr.sort(chain(contactByWarmth('asc'), contactByName('asc'), contactByIdAsc));
       break;
     case 'warmth_desc':
-      arr.sort(
-        (a, b) => (b.warmth ?? Number.NEGATIVE_INFINITY) - (a.warmth ?? Number.NEGATIVE_INFINITY),
-      );
+      arr.sort(chain(contactByWarmth('desc'), contactByName('asc'), contactByIdAsc));
       break;
     case 'asset_count_desc': {
       const counts = ctx.assetCountMap ?? buildAssetCountMap(ctx.assets ?? []);
-      arr.sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0));
+      arr.sort(chain(contactByAssetCount(counts, 'desc'), contactByName('asc'), contactByIdAsc));
       break;
     }
   }
   return arr;
 }
 
+/**
+ * applyAssetSort — same tiebreak philosophy as contacts.
+ * Primary key first, then name asc, then id asc as final stability guard.
+ */
 export function applyAssetSort(assets: Asset[], mode: AssetSortMode): Asset[] {
   const arr = assets.slice();
   switch (mode) {
     case 'updated_desc':
-      arr.sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+      arr.sort(chain(assetByUpdated('desc'), assetByName('asc'), assetByIdAsc));
       break;
     case 'created_desc':
-      arr.sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+      arr.sort(chain(assetByCreated('desc'), assetByName('asc'), assetByIdAsc));
       break;
     case 'name_asc':
-      arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+      arr.sort(chain(assetByName('asc'), assetByCreated('desc'), assetByIdAsc));
       break;
     case 'name_desc':
-      arr.sort((a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: 'base' }));
+      arr.sort(chain(assetByName('desc'), assetByCreated('desc'), assetByIdAsc));
       break;
   }
   return arr;

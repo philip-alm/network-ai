@@ -197,6 +197,70 @@ describe('applyContactSort', () => {
     const out = applyContactSort(contacts, 'warmth_asc', { assets: [] });
     expect(out.map((c) => c.id)).toEqual(['B', 'C', 'A']);
   });
+  it('warmth_desc treats null as last (still last, not first)', () => {
+    const contacts = [
+      makeContact({ id: 'A', warmth: null }),
+      makeContact({ id: 'B', warmth: 5 }),
+      makeContact({ id: 'C', warmth: 2 }),
+    ];
+    const out = applyContactSort(contacts, 'warmth_desc', { assets: [] });
+    expect(out.map((c) => c.id)).toEqual(['B', 'C', 'A']);
+  });
+  it('warmth_desc tiebreaks by name asc within each warmth tier', () => {
+    const contacts = [
+      makeContact({ id: '1', name: 'Charlie', warmth: 5 }),
+      makeContact({ id: '2', name: 'Anna', warmth: 5 }),
+      makeContact({ id: '3', name: 'Bo', warmth: 3 }),
+      makeContact({ id: '4', name: 'Alma', warmth: 5 }),
+      makeContact({ id: '5', name: 'Anna', warmth: 3 }),
+    ];
+    const out = applyContactSort(contacts, 'warmth_desc', { assets: [] });
+    // warmth=5 tier alphabetical (Alma, Anna, Charlie), then warmth=3
+    // (Anna, Bo).
+    expect(out.map((c) => c.name)).toEqual(['Alma', 'Anna', 'Charlie', 'Anna', 'Bo']);
+  });
+  it('warmth_asc tiebreaks by name asc within each warmth tier', () => {
+    const contacts = [
+      makeContact({ id: '1', name: 'Bo', warmth: 1 }),
+      makeContact({ id: '2', name: 'Anna', warmth: 1 }),
+      makeContact({ id: '3', name: 'Charlie', warmth: 2 }),
+    ];
+    const out = applyContactSort(contacts, 'warmth_asc', { assets: [] });
+    expect(out.map((c) => c.name)).toEqual(['Anna', 'Bo', 'Charlie']);
+  });
+  it('updated_desc tiebreaks by name when timestamps are equal', () => {
+    const ts = '2026-05-01T00:00:00Z';
+    const contacts = [
+      makeContact({ id: '1', name: 'Charlie', updated_at: ts }),
+      makeContact({ id: '2', name: 'Anna', updated_at: ts }),
+      makeContact({ id: '3', name: 'Bo', updated_at: ts }),
+    ];
+    const out = applyContactSort(contacts, 'updated_desc', { assets: [] });
+    expect(out.map((c) => c.name)).toEqual(['Anna', 'Bo', 'Charlie']);
+  });
+  it('asset_count_desc tiebreaks by name when counts are equal', () => {
+    const contacts = [
+      makeContact({ id: 'C', name: 'Charlie' }),
+      makeContact({ id: 'A', name: 'Anna' }),
+      makeContact({ id: 'B', name: 'Bo' }),
+    ];
+    const assets = [
+      makeAsset({ contact_id: 'A' }),
+      makeAsset({ contact_id: 'B' }),
+      makeAsset({ contact_id: 'C' }),
+    ];
+    const map = buildAssetCountMap(assets);
+    const out = applyContactSort(contacts, 'asset_count_desc', { assetCountMap: map });
+    expect(out.map((c) => c.name)).toEqual(['Anna', 'Bo', 'Charlie']);
+  });
+  it('name_asc tiebreaks identical names by created_at desc (newer first)', () => {
+    const contacts = [
+      makeContact({ id: '1', name: 'Anna', created_at: '2026-01-01T00:00:00Z' }),
+      makeContact({ id: '2', name: 'Anna', created_at: '2026-05-01T00:00:00Z' }),
+    ];
+    const out = applyContactSort(contacts, 'name_asc', { assets: [] });
+    expect(out.map((c) => c.id)).toEqual(['2', '1']);
+  });
   it('name_desc is reverse alphabetical, case-insensitive', () => {
     const contacts = [
       makeContact({ id: 'a', name: 'anna' }),
@@ -213,6 +277,34 @@ describe('applyAssetSort', () => {
     const a1 = makeAsset({ id: 'old', created_at: '2026-01-01T00:00:00Z' });
     const a2 = makeAsset({ id: 'new', created_at: '2026-05-01T00:00:00Z' });
     expect(applyAssetSort([a1, a2], 'created_desc').map((a) => a.id)).toEqual(['new', 'old']);
+  });
+  it('updated_desc tiebreaks by name when timestamps are equal', () => {
+    const ts = '2026-05-01T00:00:00Z';
+    const assets = [
+      makeAsset({ id: '1', name: 'Studio', updated_at: ts }),
+      makeAsset({ id: '2', name: 'Apartment', updated_at: ts }),
+      makeAsset({ id: '3', name: 'Camera', updated_at: ts }),
+    ];
+    expect(applyAssetSort(assets, 'updated_desc').map((a) => a.name)).toEqual([
+      'Apartment',
+      'Camera',
+      'Studio',
+    ]);
+  });
+  it('name_asc tiebreaks identical names by created_at desc', () => {
+    const assets = [
+      makeAsset({ id: '1', name: 'Studio', created_at: '2026-01-01T00:00:00Z' }),
+      makeAsset({ id: '2', name: 'Studio', created_at: '2026-05-01T00:00:00Z' }),
+    ];
+    expect(applyAssetSort(assets, 'name_asc').map((a) => a.id)).toEqual(['2', '1']);
+  });
+  it('created_desc sends null timestamps last regardless of direction', () => {
+    const assets = [
+      makeAsset({ id: 'null', created_at: null as unknown as string }),
+      makeAsset({ id: 'old', created_at: '2026-01-01T00:00:00Z' }),
+      makeAsset({ id: 'new', created_at: '2026-05-01T00:00:00Z' }),
+    ];
+    expect(applyAssetSort(assets, 'created_desc').map((a) => a.id)).toEqual(['new', 'old', 'null']);
   });
 });
 

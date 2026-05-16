@@ -123,7 +123,12 @@ export const EMPTY_PANEL_FILTER: ContactFilterState = EMPTY_CONTACT_FILTER;
 export const DEFAULT_PANEL_STATE: PanelState = {
   contactFilter: EMPTY_CONTACT_FILTER,
   assetFilter: EMPTY_ASSET_FILTER,
-  contactSort: 'updated_desc',
+  // Default sort: warmest contacts first (5 = "would drop everything"
+  // floats to top), with first-name alphabetical tiebreak inside each
+  // warmth tier. Picked over recency because "who matters most" is the
+  // load-bearing question of a personal network; recency is a control
+  // the user can flip to once they're looking for something specific.
+  contactSort: 'warmth_desc',
   assetSort: 'updated_desc',
   search: '',
   pinnedContactIds: [],

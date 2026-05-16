@@ -153,7 +153,7 @@ function ContactRowInner({ contact, ownAssets, onDelete }: ContactRowProps) {
     <motion.div
       ref={rowRef}
       data-testid={`contact-row-${contact.id}`}
-      className={`group rounded-md ${highlighted ? 'animate-highlight-pulse' : ''} ${
+      className={`group relative rounded-md ${highlighted ? 'animate-highlight-pulse' : ''} ${
         // No outer margin when open — it pushed siblings down 8px and
         // produced the 1-2px layout shift the user noticed. The bg +
         // shadow alone are enough visual separation for the panel.
@@ -417,6 +417,19 @@ function ContactRowInner({ contact, ownAssets, onDelete }: ContactRowProps) {
           </motion.div>
         ) : null}
       </AnimatePresence>
+
+      {/* Hairline separator below each row. Fades out when this row is
+          open — the open card's shadow-hairline-soft ring is its own
+          visual edge, and a separator beneath it would double-frame
+          the bottom. Inset by px-3 to align with the row's content
+          gutter. */}
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border-soft transition-opacity duration-[160ms] ${
+          open ? 'opacity-0' : 'opacity-70'
+        }`}
+        style={{ transitionTimingFunction: 'var(--ease-out)' }}
+      />
     </motion.div>
   );
 }

@@ -17,7 +17,9 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { Search } from 'lucide-react';
+import { WithTooltip, setClickInspectorArmed, readLastClickCapture } from '@reknowable/app';
 
 type Stats = {
   reactClicks: number;
@@ -340,6 +342,147 @@ function VariantH() {
   );
 }
 
+/* ─────────────────────────────────────────────────────────────────
+   I — Wrapped in WithTooltip. The HomeScreen header wraps its icon
+       buttons in WithTooltip. If baseline works but this fails, the
+       tooltip wrapper is the interceptor.
+   ───────────────────────────────────────────────────────────────── */
+function VariantI() {
+  const { ref, stats, onReactClick, reset } = useStats<HTMLButtonElement>();
+  return (
+    <Card
+      id="I"
+      title="Wrapped in WithTooltip"
+      desc="The same baseline button, but wrapped in the exact <WithTooltip> wrapper used by the HomeScreen header icons. If this breaks, the tooltip span is the culprit."
+    >
+      <WithTooltip label="Search" shortcut="cmd+K">
+        <button ref={ref} type="button" onClick={onReactClick} className={BTN}>
+          <Search size={14} aria-hidden />
+          <span className="flex-1 text-left">Search anyone or anything…</span>
+          <kbd className={KBD}>⌘K</kbd>
+        </button>
+      </WithTooltip>
+      <Stats s={stats} reset={reset} />
+    </Card>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   J — Live click-stack inspector. Arms a global listener that runs
+       even after you navigate away. Click anything on the broken
+       page; the topmost element at the click point will appear in
+       a fixed banner — and be saved here so you can come back and
+       read it.
+   ───────────────────────────────────────────────────────────────── */
+function VariantJ() {
+  const [armed, setArmed] = useState(false);
+  const [last, setLast] = useState<ReturnType<typeof readLastClickCapture>>(null);
+
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem('reknowable:inspect-clicks');
+      if (v === '1') setArmed(true);
+      setLast(readLastClickCapture());
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Poll localStorage every second so navigating back from /home
+  // surfaces the most-recent capture automatically.
+  useEffect(() => {
+    const id = setInterval(() => setLast(readLastClickCapture()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const arm = (): void => {
+    setClickInspectorArmed(true);
+    setArmed(true);
+  };
+  const disarm = (): void => {
+    setClickInspectorArmed(false);
+    setArmed(false);
+  };
+  const clear = (): void => {
+    try {
+      window.localStorage.removeItem('reknowable:inspect-last');
+    } catch {
+      // ignore
+    }
+    setLast(null);
+  };
+
+  return (
+    <Card
+      id="J"
+      title="Live click-stack inspector"
+      desc="Arm the listener, then navigate to / (home) and click the broken icon. A fixed banner there will show the topmost element. The capture is also mirrored back here."
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {armed ? (
+          <button
+            type="button"
+            onClick={disarm}
+            className="rounded-md bg-fg px-3 py-1.5 text-[12px] font-medium text-bg"
+          >
+            Disarm
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={arm}
+            className="rounded-md bg-accent px-3 py-1.5 text-[12px] font-medium text-bg"
+          >
+            Arm inspector
+          </button>
+        )}
+        <Link
+          href="/"
+          className="rounded-md bg-surface-soft px-3 py-1.5 text-[12px] text-fg hover:bg-bg"
+        >
+          Go to home →
+        </Link>
+        <button
+          type="button"
+          onClick={clear}
+          className="ml-auto rounded-sm bg-surface-soft px-1.5 py-0.5 text-[10px] hover:bg-bg"
+        >
+          clear capture
+        </button>
+      </div>
+      <div className="mt-3 rounded-md bg-surface-soft p-3 text-[11px] leading-relaxed">
+        {last ? (
+          <>
+            <div className="mb-1 text-faint">
+              ({last.x}, {last.y}) · {new Date(last.ts).toLocaleTimeString()}
+            </div>
+            <ol className="space-y-0.5 pl-5">
+              {last.stack.map((e, i) => (
+                <li key={i} className={i === 0 ? 'font-medium text-fg' : 'text-muted'}>
+                  <span className="font-mono">{e.tag}</span>
+                  {e.classes ? (
+                    <span className="text-faint">
+                      {' '}
+                      .{e.classes.split(/\s+/).slice(0, 3).join('.')}
+                    </span>
+                  ) : null}
+                  <span className="text-faint"> · pe={e.pointerEvents}</span>
+                  {e.zIndex !== 'auto' ? <span className="text-faint"> · z={e.zIndex}</span> : null}
+                </li>
+              ))}
+            </ol>
+          </>
+        ) : (
+          <span className="text-muted">
+            No capture yet.{' '}
+            {armed ? 'Arm is active — go click the broken button.' : 'Click "Arm inspector" first.'}
+          </span>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function ButtonsLabPage() {
   return (
     <main className="min-h-screen bg-bg px-6 py-10 text-fg">
@@ -371,6 +514,8 @@ export default function ButtonsLabPage() {
         <VariantF />
         <VariantG />
         <VariantH />
+        <VariantI />
+        <VariantJ />
       </div>
     </main>
   );

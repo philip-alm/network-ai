@@ -13,13 +13,20 @@ import {
 
 /**
  * Kbd — one keycap. The canonical kbd primitive across the whole app.
+ * Do NOT hand-roll `<kbd>` pills anywhere else — visual consistency
+ * across the chat composer, command palette, settings modal, sidebar,
+ * tooltips, and toasts only holds because every surface flows through
+ * this primitive. See `docs/SHORTCUTS.md` §4 for the full rule set.
  *
  * Use cases:
- *   <Kbd>K</Kbd>                       — single key
- *   <Kbd keys={['cmd', 'K']} />        — multi-key combo (renders 2 caps + gap)
- *   <Kbd keys={['esc']} size="sm" />   — explicit size
- *   <Kbd tone="inverted">⌫</Kbd>       — when used on a dark background (e.g. the
- *                                        delete-undo toast which has a dark bg)
+ *   <Kbd>K</Kbd>                                 — single key
+ *   <Kbd keys={['cmd', 'K']} />                  — 2-key combo: two caps + gap
+ *   <Kbd keys={['cmd', 'shift', 'O']} />         — 3+ keys: one combined capsule
+ *   <Kbd keys={['esc']} size="sm" />             — explicit size
+ *   <Kbd tone="inverted">⌫</Kbd>                 — on dark surface (Undo toast, tooltip)
+ *
+ * For string-form shortcut props (e.g. WithTooltip's `shortcut="cmd+K"`),
+ * use `parseShortcut(s)` to convert to a keys array first.
  *
  * Visual rules (the "polished kbd" spec):
  *   • Each cap is its own square-ish capsule with the SAME outer shape, so

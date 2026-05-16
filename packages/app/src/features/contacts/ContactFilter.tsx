@@ -152,7 +152,7 @@ export function ContactFilter({ contacts, value, onChange }: ContactFilterProps)
           aria-expanded={open}
           data-testid="contacts-filter-trigger"
           onClick={() => setOpen((v) => !v)}
-          className={`relative inline-flex h-6 w-6 items-center justify-center rounded-md transition-all duration-[140ms] active:scale-[0.95] ${
+          className={`relative inline-flex h-7 w-7 items-center justify-center rounded-md transition-all duration-[140ms] active:scale-[0.95] ${
             activeCount > 0
               ? 'bg-accent-soft text-accent'
               : 'text-faint hover:bg-surface-soft hover:text-fg focus-visible:bg-surface-soft focus-visible:text-fg'
@@ -162,7 +162,7 @@ export function ContactFilter({ contacts, value, onChange }: ContactFilterProps)
             WebkitTapHighlightColor: 'transparent',
           }}
         >
-          <Filter size={12} aria-hidden />
+          <Filter size={13} aria-hidden />
           {activeCount > 0 ? (
             <span
               aria-hidden

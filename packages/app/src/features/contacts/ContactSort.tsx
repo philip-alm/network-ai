@@ -101,7 +101,7 @@ export function ContactSort({ value, onChange }: ContactSortProps) {
           aria-expanded={open}
           data-testid="contacts-sort-trigger"
           onClick={() => setOpen((v) => !v)}
-          className={`inline-flex h-6 w-6 items-center justify-center rounded-md transition-all duration-[140ms] active:scale-[0.95] ${
+          className={`inline-flex h-7 w-7 items-center justify-center rounded-md transition-all duration-[140ms] active:scale-[0.95] ${
             value !== DEFAULT_SORT
               ? 'bg-accent-soft text-accent'
               : 'text-faint hover:bg-surface-soft hover:text-fg focus-visible:bg-surface-soft focus-visible:text-fg'
@@ -111,7 +111,7 @@ export function ContactSort({ value, onChange }: ContactSortProps) {
             WebkitTapHighlightColor: 'transparent',
           }}
         >
-          <ArrowDownUp size={12} aria-hidden />
+          <ArrowDownUp size={13} aria-hidden />
         </button>
       </WithTooltip>
 

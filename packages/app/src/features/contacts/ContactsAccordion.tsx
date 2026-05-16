@@ -35,6 +35,8 @@ import { iconForAsset } from './assetIcons';
 import { SkeletonRows } from './SkeletonRows';
 import { CountUp } from './CountUp';
 import { ProgressRing } from './ProgressRing';
+import { useCascadeIn } from './useCascadeIn';
+import { VirtualPanelList, buildPanelItems, type PanelItem } from './VirtualPanelList';
 import { useNetworkStore, type Contact, type Asset, type PanelState } from '../../lib/store';
 import { getBrowserSupabase } from '../../lib/supabase';
 import { SoftDivider, WithTooltip, Kbd } from '../ui';
@@ -131,6 +133,7 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
   const showContacts = view === 'both' || view === 'contacts';
   const showAssets = view === 'both' || view === 'assets';
   const { active: firstEntryActive } = useFirstContactDelight(contacts.length);
+
   const isPanelDirty =
     !isContactFilterEmpty(panel.contactFilter) ||
     !isAssetFilterEmpty(panel.assetFilter) ||
@@ -178,6 +181,114 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
     },
     [handleDelete],
   );
+
+  // ── Build the typed panel item list for the virtualizer.
+  // One source of truth — pinned labels, dividers, the assets
+  // section header, first-entry caption are all items in the same
+  // array. The virtualizer handles ordering and visibility.
+  const panelItems = useMemo<PanelItem[]>(
+    () =>
+      buildPanelItems({
+        view,
+        visibleContacts: showContacts ? visibleContacts : [],
+        visibleAssets: showAssets ? visibleAssets : [],
+        pinnedContactIds: pinnedContactSet,
+        pinnedAssetIds: pinnedAssetSet,
+        showContacts,
+        showAssets,
+        showFirstEntryCaption: firstEntryActive,
+        assetsTotal: assets.length,
+      }),
+    [
+      view,
+      visibleContacts,
+      visibleAssets,
+      pinnedContactSet,
+      pinnedAssetSet,
+      showContacts,
+      showAssets,
+      firstEntryActive,
+      assets.length,
+    ],
+  );
+
+  // Dispatch rendering by item type. The cascade animation wraps the
+  // row content on an INNER div; the virtualizer owns the OUTER
+  // absolute-positioned transform — so the two transforms compose
+  // without conflict.
+  const renderPanelItem = useCallback(
+    (item: PanelItem): React.ReactNode => {
+      switch (item.type) {
+        case 'contact':
+          return (
+            <CascadeRow id={item.data.id} index={item.cascadeIndex}>
+              <ContactRow
+                contact={item.data}
+                ownAssets={getOwnAssets(assetsByOwner, item.data.id)}
+                onDelete={handleDeleteCallback}
+              />
+            </CascadeRow>
+          );
+        case 'asset': {
+          const Icon = iconForAsset(item.data.name, item.data.availability);
+          const owner = item.data.contact_id ? contactById.get(item.data.contact_id) : null;
+          const open = expandedAssetIds.has(item.data.id);
+          return (
+            <CascadeRow id={item.data.id} index={item.cascadeIndex}>
+              <AssetRow
+                asset={item.data}
+                Icon={Icon}
+                owner={owner ?? null}
+                open={open}
+                onToggle={() => toggleAssetExpanded(item.data.id)}
+                onJumpToOwner={owner ? () => jumpTo(owner.id) : undefined}
+              />
+            </CascadeRow>
+          );
+        }
+        case 'pinned-label':
+          return <PinnedSectionLabel count={item.count} />;
+        case 'pinned-divider':
+          return (
+            <div className="my-2 px-1">
+              <SoftDivider />
+            </div>
+          );
+        case 'asset-section-header':
+          return (
+            <div className="mt-4">
+              <PanelHeader
+                Icon={Briefcase}
+                title="Assets"
+                count={item.visible}
+                total={item.total}
+              />
+            </div>
+          );
+        case 'first-entry-caption':
+          return <FirstEntryCaption />;
+      }
+    },
+    [
+      assetsByOwner,
+      contactById,
+      expandedAssetIds,
+      handleDeleteCallback,
+      jumpTo,
+      toggleAssetExpanded,
+    ],
+  );
+
+  // Scroll-to-top on sort change. Sort destroys the meaning of the
+  // current scroll position (the row at y=1500 is now a different
+  // row) — anchoring there would be more confusing than starting
+  // from the top.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: 0, behavior: 'auto' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, view, panel.assetSort]);
 
   const handleUndo = useCallback(async (): Promise<void> => {
     if (!pending) return;
@@ -232,18 +343,23 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
         scrolled={scrolled}
         loadingPhase={loading.phase}
         actions={
-          contacts.length + assets.length > 0 ? (
-            <span className="inline-flex items-center gap-1.5">
-              <HeaderSearch value={search} onChange={setSearch} />
-              <ViewToggle view={view} onChange={setView} />
-              {contacts.length > 0 && view !== 'assets' ? (
-                <>
-                  <ContactSort value={sort} onChange={setSort} />
-                  <ContactFilter contacts={contacts} value={filter} onChange={setFilter} />
-                </>
-              ) : null}
-            </span>
-          ) : null
+          // Always render the action cluster — even when contacts and
+          // assets are still loading. Previously this was conditional on
+          // `length > 0`, so on first paint the search + view + sort +
+          // filter icons were absent and then popped in once data
+          // arrived, shifting the layout. Sort + filter render in every
+          // view; their dropdowns are no-ops when there's nothing to act
+          // on but the buttons hold their slots.
+          <span className="inline-flex items-center gap-1.5">
+            <HeaderSearch value={search} onChange={setSearch} />
+            <ViewToggle view={view} onChange={setView} />
+            {view !== 'assets' ? (
+              <>
+                <ContactSort value={sort} onChange={setSort} />
+                <ContactFilter contacts={contacts} value={filter} onChange={setFilter} />
+              </>
+            ) : null}
+          </span>
         }
       />
 
@@ -269,99 +385,20 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
       {showContacts && contacts.length > 0 && visibleContacts.length === 0 ? (
         <EmptyFilterState onClear={() => clearPanelFilters()} />
       ) : null}
-      {showContacts && visibleContacts.length > 0 ? (
-        <div className="p-3">
-          {(() => {
-            const pinned = visibleContacts.filter((c) => pinnedContactSet.has(c.id));
-            const rest = visibleContacts.filter((c) => !pinnedContactSet.has(c.id));
-            // No `layout="position"` here. Layout animations look smooth
-            // in isolation, but when a row expands they make siblings
-            // visibly slide — and the user reads that slide as "the
-            // order changed". With sibling positions snapping instead,
-            // expansion is unambiguous: only the clicked row grows;
-            // everything else stays put. (Order stability under upsert
-            // is proven in `orderStability.test.ts`.)
-            const renderRow = (c: Contact): React.ReactNode => (
-              <motion.div
-                key={c.id}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 6, height: 0 }}
-                transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-              >
-                <ContactRow
-                  contact={c}
-                  ownAssets={getOwnAssets(assetsByOwner, c.id)}
-                  onDelete={handleDeleteCallback}
-                />
-              </motion.div>
-            );
-            return (
-              <>
-                {pinned.length > 0 ? (
-                  <>
-                    <PinnedSectionLabel count={pinned.length} />
-                    <AnimatePresence initial={false}>{pinned.map(renderRow)}</AnimatePresence>
-                    <div className="my-2 px-1">
-                      <SoftDivider />
-                    </div>
-                  </>
-                ) : null}
-                <AnimatePresence initial={false}>{rest.map(renderRow)}</AnimatePresence>
-              </>
-            );
-          })()}
-          <AnimatePresence>{firstEntryActive ? <FirstEntryCaption /> : null}</AnimatePresence>
-        </div>
-      ) : null}
-
-      {showAssets && visibleAssets.length > 0 ? (
-        <div className={showContacts ? 'mt-4' : ''}>
-          {showContacts ? (
-            <PanelHeader
-              Icon={Briefcase}
-              title="Assets"
-              count={visibleAssets.length}
-              total={assets.length}
-            />
-          ) : null}
-          <div className="p-3">
-            {(() => {
-              const pinned = visibleAssets.filter((a) => pinnedAssetSet.has(a.id));
-              const rest = visibleAssets.filter((a) => !pinnedAssetSet.has(a.id));
-              const renderAssetRow = (a: Asset): React.ReactNode => {
-                const Icon = iconForAsset(a.name, a.availability);
-                const owner = a.contact_id ? contactById.get(a.contact_id) : null;
-                const open = expandedAssetIds.has(a.id);
-                return (
-                  <li key={a.id}>
-                    <AssetRow
-                      asset={a}
-                      Icon={Icon}
-                      owner={owner ?? null}
-                      open={open}
-                      onToggle={() => toggleAssetExpanded(a.id)}
-                      onJumpToOwner={owner ? () => jumpTo(owner.id) : undefined}
-                    />
-                  </li>
-                );
-              };
-              return (
-                <>
-                  {pinned.length > 0 ? (
-                    <>
-                      <PinnedSectionLabel count={pinned.length} />
-                      <ul className="space-y-0.5">{pinned.map(renderAssetRow)}</ul>
-                      <div className="my-2 px-1">
-                        <SoftDivider />
-                      </div>
-                    </>
-                  ) : null}
-                  <ul className="space-y-0.5">{rest.map(renderAssetRow)}</ul>
-                </>
-              );
-            })()}
-          </div>
+      {/* Virtualized panel list — single virtualizer handles BOTH the
+          contacts section and the assets section + their pinned
+          subsections, section header, and the first-entry caption.
+          Builds a typed `PanelItem[]` and dispatches rendering by type.
+          Scales to 100k+ rows: only items in the viewport (~30) are
+          mounted at any time. See VirtualPanelList.tsx for the
+          virtualization rules + scroll-anchor behavior. */}
+      {panelItems.length > 0 ? (
+        <div className="px-3 pb-3">
+          <VirtualPanelList
+            items={panelItems}
+            scrollerRef={scrollerRef}
+            renderItem={renderPanelItem}
+          />
         </div>
       ) : null}
 
@@ -410,6 +447,24 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
   );
 }
 
+/**
+ * CascadeRow — wraps a contact row in a one-shot opacity + Y settle the
+ * FIRST time React mounts it (tracked by store.seenIds, so virtualization
+ * remounts don't re-animate). Subsequent renders are identity-style.
+ */
+function CascadeRow({
+  id,
+  index,
+  children,
+}: {
+  id: string;
+  index: number;
+  children: React.ReactNode;
+}) {
+  const style = useCascadeIn(id, index);
+  return <div style={style}>{children}</div>;
+}
+
 function ViewToggleButton({
   active,
   label,
@@ -429,7 +484,7 @@ function ViewToggleButton({
         aria-checked={active}
         aria-label={label}
         onClick={onClick}
-        className={`inline-flex h-5 w-6 items-center justify-center rounded-sm transition-all duration-[140ms] active:scale-[0.92] ${
+        className={`inline-flex h-6 w-7 items-center justify-center rounded-sm transition-all duration-[140ms] active:scale-[0.92] ${
           active
             ? 'bg-surface text-fg shadow-hairline-soft'
             : 'text-faint hover:text-fg focus-visible:text-fg'
@@ -439,7 +494,7 @@ function ViewToggleButton({
           WebkitTapHighlightColor: 'transparent',
         }}
       >
-        <Icon size={11} aria-hidden />
+        <Icon size={13} aria-hidden />
       </button>
     </WithTooltip>
   );
@@ -512,13 +567,13 @@ function HeaderSearch({ value, onChange }: { value: string; onChange: (v: string
           }}
           aria-label="Clear search"
           data-testid="header-search-clear"
-          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-faint transition-all duration-[140ms] hover:bg-surface-soft hover:text-fg active:scale-[0.92]"
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm text-faint transition-all duration-[140ms] hover:bg-surface-soft hover:text-fg active:scale-[0.92]"
           style={{
             transitionTimingFunction: 'var(--ease-out)',
             WebkitTapHighlightColor: 'transparent',
           }}
         >
-          <X size={10} aria-hidden />
+          <X size={12} aria-hidden />
         </button>
       ) : null}
     </label>
@@ -831,19 +886,34 @@ function AssetRow({
   return (
     <div
       className={`group rounded-md transition-all duration-[140ms] ${
-        open ? 'my-1 bg-surface-soft shadow-hairline-soft' : ''
+        // No outer margin when open — same fix as ContactRow. The 4px
+        // top + 4px bottom margin shifted siblings by 8px on toggle.
+        // The bg + shadow alone are enough visual separation.
+        open ? 'bg-surface-soft shadow-hairline-soft' : ''
       }`}
       style={{
         transition: 'background-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out)',
       }}
     >
-      <button
-        type="button"
+      {/* Outer is a div (not a button) so the owner pill can be a real
+          nested button without producing invalid <button>-in-<button>
+          markup — which was triggering a hydration error AND making
+          the click target ambiguous. The div carries the role/keyboard
+          handling so screen readers + Enter/Space still work. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
         aria-expanded={open}
         aria-controls={`asset-panel-${asset.id}`}
         data-testid={`asset-toggle-${asset.id}`}
-        className={`flex w-full min-w-0 items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-sm transition-all duration-[160ms] active:scale-[0.998] ${
+        className={`flex w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-sm transition-colors duration-[160ms] active:scale-[0.998] ${
           open ? '' : 'hover:bg-surface-soft focus-visible:bg-surface-soft'
         }`}
         style={{
@@ -870,7 +940,7 @@ function AssetRow({
                 onJumpToOwner();
               }}
               aria-label={`Open ${owner.name} who owns ${asset.name}`}
-              className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-muted transition-all duration-[140ms] hover:bg-bg hover:text-accent focus-visible:bg-bg focus-visible:text-accent active:scale-[0.96]"
+              className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-muted transition-colors duration-[140ms] hover:bg-bg hover:text-accent focus-visible:bg-bg focus-visible:text-accent active:scale-[0.96]"
               style={{
                 transitionTimingFunction: 'var(--ease-out)',
                 WebkitTapHighlightColor: 'transparent',
@@ -891,7 +961,7 @@ function AssetRow({
             style={{ transitionTimingFunction: 'var(--ease-out)' }}
           />
         </span>
-      </button>
+      </div>
 
       <AnimatePresence initial={false}>
         {open ? (
@@ -1023,7 +1093,13 @@ function PanelHeader({
           {actions ? <span className="inline-flex items-center gap-1">{actions}</span> : null}
         </span>
       </div>
-      <SoftDivider inset={24} />
+      {/* Section-bottom hairline. Same color + alpha + weight as the
+          per-row separators (bg-border-soft / 70), and aligned to the
+          same content column (24px = header px-6 = row content start)
+          so all hairlines in the panel read as one family. Replaces
+          the old SoftDivider gradient which felt heavier than the new
+          per-row marks. */}
+      <div aria-hidden className="mx-6 h-px bg-border-soft opacity-70" />
     </div>
   );
 }
