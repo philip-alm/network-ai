@@ -24,6 +24,13 @@ export type DebugRecorder = {
   recordToolCall(id: string, name: string, args: unknown): void;
   recordToolResult(id: string, result: unknown, durationMs: number): void;
   recordTimeline(event: string, payload?: unknown): void;
+  /**
+   * Wait for any pending async writes to land on disk before continuing.
+   * Synchronous recorders (Node, noop) return resolved Promise immediately.
+   * The HTTP recorder uses this to drain its in-flight fetch chain so
+   * `runAgentTurn` doesn't resolve before the trace is fully persisted.
+   */
+  flush?(): Promise<void>;
   /** Where the artifact directory lives (Node only). */
   readonly path?: string;
 };
@@ -36,4 +43,5 @@ export const noopDebugRecorder: DebugRecorder = {
   recordToolCall() {},
   recordToolResult() {},
   recordTimeline() {},
+  async flush() {},
 };

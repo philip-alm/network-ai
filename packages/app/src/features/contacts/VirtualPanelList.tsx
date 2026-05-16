@@ -32,17 +32,18 @@
  *    anchors content in place.
  */
 
-import { useCallback, useLayoutEffect, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Contact, Asset } from '../../lib/store';
 
-/** The taxonomy of things that can appear in the right pane. */
+/** The taxonomy of things that can appear in the right pane. The pane
+ *  shows either contacts OR assets at a time (no "both" view), so we
+ *  never need an inline section header between them. */
 export type PanelItem =
   | { type: 'contact'; data: Contact; pinned: boolean; cascadeIndex: number }
   | { type: 'asset'; data: Asset; pinned: boolean; cascadeIndex: number }
   | { type: 'pinned-label'; section: 'contacts' | 'assets'; count: number }
   | { type: 'pinned-divider'; section: 'contacts' | 'assets' }
-  | { type: 'asset-section-header'; total: number; visible: number }
   | { type: 'first-entry-caption' };
 
 /**
@@ -55,7 +56,6 @@ export const PANEL_ITEM_ESTIMATES: Record<PanelItem['type'], number> = {
   asset: 44,
   'pinned-label': 28,
   'pinned-divider': 14,
-  'asset-section-header': 48,
   'first-entry-caption': 60,
 };
 
@@ -70,8 +70,6 @@ export function panelItemKey(item: PanelItem): string {
       return `pl-${item.section}`;
     case 'pinned-divider':
       return `pd-${item.section}`;
-    case 'asset-section-header':
-      return 'ash';
     case 'first-entry-caption':
       return 'fec';
   }
@@ -88,6 +86,13 @@ export type VirtualPanelListProps = {
    *  fast scroll. Default 8 — enough for inertial scroll without
    *  inflating React work per frame. */
   overscan?: number;
+  /** Scroll-to intent fired by useNavigateToRow / store.jumpTo. The
+   *  list locates the row by (kind, id) in its items array and calls
+   *  virtualizer.scrollToIndex so an off-screen row scrolls into the
+   *  render window. The row component's own scrollIntent effect then
+   *  takes over (open + highlight pulse + 1.2s clear). Without this,
+   *  any row past the overscan window is silently un-scrollable. */
+  scrollIntent?: { id: string; kind: 'contact' | 'asset'; nonce: number } | null;
   /** Test-only: skip the virtualizer and render every item. JSDOM has
    *  no layout, so virtualization can't be exercised meaningfully in
    *  unit tests; this lets DOM-assertion tests still verify rendering. */
@@ -99,6 +104,7 @@ export function VirtualPanelList({
   scrollerRef,
   renderItem,
   overscan = 8,
+  scrollIntent = null,
   disableVirtualization = false,
 }: VirtualPanelListProps): React.ReactElement {
   // Memoized so the virtualizer's measurement cache doesn't churn on
@@ -129,6 +135,33 @@ export function VirtualPanelList({
       return item.start < offset;
     };
   }, [virtualizer]);
+
+  // scrollIntent → virtualizer.scrollToIndex.
+  //
+  // Two-phase scroll: (1) virtualizer scrolls the parent so the row's
+  // index lands near the middle of the viewport — this also forces
+  // the row component to mount via the overscan window; (2) the row
+  // component's own scrollIntent effect runs scrollIntoView for the
+  // final fine adjustment + opens the row + clears highlight after
+  // the pulse. Re-fires whenever `nonce` changes, so a second click
+  // on the same id re-scrolls.
+  //
+  // Tracked with `lastHandledNonceRef` (NOT a useEffect dep) so the
+  // effect can read the current items list without re-running on every
+  // items rebuild — re-running on items would re-scroll on every
+  // realtime upsert, which would yank the scroll position out from
+  // under the user.
+  const lastHandledNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!scrollIntent) return;
+    if (lastHandledNonceRef.current === scrollIntent.nonce) return;
+    const targetType = scrollIntent.kind;
+    const index = items.findIndex((it) => it.type === targetType && it.data.id === scrollIntent.id);
+    if (index < 0) return; // Row not in items yet — useNavigateToRow will re-fire after upsert.
+    lastHandledNonceRef.current = scrollIntent.nonce;
+    if (disableVirtualization) return; // Tests assert the index lookup, not the scroll.
+    virtualizer.scrollToIndex(index, { align: 'center', behavior: 'smooth' });
+  }, [scrollIntent, items, virtualizer, disableVirtualization]);
 
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
@@ -182,12 +215,22 @@ export function VirtualPanelList({
 }
 
 /**
+ * Locate a row in the items list by (kind, id). Pure + extracted from
+ * the scroll-intent effect so tests can assert the lookup directly
+ * without needing the virtualizer + DOM layout. Returns -1 when the
+ * row isn't present, which the caller treats as "wait for upsert."
+ */
+export function findRowIndex(items: PanelItem[], kind: 'contact' | 'asset', id: string): number {
+  return items.findIndex((it) => it.type === kind && it.data.id === id);
+}
+
+/**
  * Pure builder for the typed item list the virtualizer renders. Kept
  * separate from the React component so it can be unit-tested without
  * mounting anything.
  */
 export function buildPanelItems(input: {
-  view: 'contacts' | 'both' | 'assets';
+  view: 'contacts' | 'assets';
   visibleContacts: Contact[];
   visibleAssets: Asset[];
   pinnedContactIds: Set<string>;
@@ -195,7 +238,6 @@ export function buildPanelItems(input: {
   showContacts: boolean;
   showAssets: boolean;
   showFirstEntryCaption: boolean;
-  assetsTotal: number;
 }): PanelItem[] {
   const items: PanelItem[] = [];
   let cascadeIndex = 0;
@@ -219,14 +261,7 @@ export function buildPanelItems(input: {
     }
   }
 
-  if (input.showAssets && input.visibleAssets.length > 0) {
-    if (input.view === 'both') {
-      items.push({
-        type: 'asset-section-header',
-        total: input.assetsTotal,
-        visible: input.visibleAssets.length,
-      });
-    }
+  if (input.showAssets) {
     const pinned = input.visibleAssets.filter((a) => input.pinnedAssetIds.has(a.id));
     const rest = input.visibleAssets.filter((a) => !input.pinnedAssetIds.has(a.id));
 

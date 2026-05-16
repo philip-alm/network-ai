@@ -32,10 +32,17 @@ export type ToolCardKind =
   | { kind: 'search'; count: number; preview?: unknown }
   | {
       kind: 'find';
+      /** How many candidate rows the agent received this turn (capped
+       *  by match_count). Drives the "Found N of T" chat card. */
       contactsCount: number;
       assetsCount: number;
-      contactPreviews: string[];
-      assetPreviews: string[];
+      /** Server-reported TRUE total of rows matching the find filters
+       *  before the candidate cap was applied. Drives the "of T" suffix. */
+      contactsTotal: number;
+      assetsTotal: number;
+      /** Top sample rows as clickable mention pills in the tool card. */
+      contactSamples: Array<{ id: string; name: string }>;
+      assetSamples: Array<{ id: string; name: string }>;
       debug?: unknown;
     }
   | {
@@ -48,10 +55,24 @@ export type ToolCardKind =
       pinnedAssetIds: string[];
       /** Free-text search string if this call set one, else null. */
       search: string | null;
-      /** View mode set by this call (contacts | both | assets), or null. */
-      view: 'contacts' | 'both' | 'assets' | null;
+      /** View mode set by this call, or null if view wasn't touched. */
+      view: 'contacts' | 'assets' | null;
+      /** Server-reported total contact + asset counts AFTER the patch
+       *  was applied. The agent reads this for honest "N matches" chat
+       *  copy; the card displays it for the user. */
+      count: { contacts: number; assets: number } | null;
+      /** Top sample names + ids after the patch — rendered as clickable
+       *  mention pills in the set_panel card. */
+      sample: {
+        contacts: Array<{ id: string; name: string }>;
+        assets: Array<{ id: string; name: string }>;
+      } | null;
     }
-  | { kind: 'panel_cleared' }
+  | {
+      kind: 'panel_cleared';
+      /** Server-reported total after the clear (back to the full set). */
+      count: { contacts: number; assets: number } | null;
+    }
   | { kind: 'error'; tool: string; error: string; hint: string };
 
 type Envelope = {
@@ -146,23 +167,29 @@ export function parseToolResult(
         | {
             contacts?: Array<Record<string, unknown>>;
             assets?: Array<Record<string, unknown>>;
+            total?: { contacts?: number; assets?: number };
             debug?: unknown;
           }
         | undefined;
       const contacts = data?.contacts ?? [];
       const assets = data?.assets ?? [];
+      const total = data?.total ?? {};
+      const sampleOf = (rows: Array<Record<string, unknown>>) =>
+        rows
+          .slice(0, 5)
+          .map((r) => ({
+            id: typeof r.id === 'string' ? r.id : '',
+            name: typeof r.name === 'string' ? r.name : '',
+          }))
+          .filter((s) => s.id && s.name);
       return {
         kind: 'find',
         contactsCount: contacts.length,
         assetsCount: assets.length,
-        contactPreviews: contacts
-          .slice(0, 3)
-          .map((c) => (typeof c.name === 'string' ? c.name : ''))
-          .filter(Boolean),
-        assetPreviews: assets
-          .slice(0, 3)
-          .map((a) => (typeof a.name === 'string' ? a.name : ''))
-          .filter(Boolean),
+        contactsTotal: Number(total.contacts ?? contacts.length),
+        assetsTotal: Number(total.assets ?? assets.length),
+        contactSamples: sampleOf(contacts),
+        assetSamples: sampleOf(assets),
         debug: data?.debug,
       };
     }
@@ -189,7 +216,7 @@ export function parseToolResult(
         search?: string;
         pinnedContactIds?: string[];
         pinnedAssetIds?: string[];
-        view?: 'contacts' | 'both' | 'assets';
+        view?: 'contacts' | 'assets';
       };
       const facets: string[] = [];
       const cf = a.contactFilter;
@@ -214,6 +241,35 @@ export function parseToolResult(
       if (a.contactSort) facets.push(`sort: ${a.contactSort}`);
       if (a.assetSort) facets.push(`asset sort: ${a.assetSort}`);
 
+      // Tool result envelope now carries { applied, count, sample } —
+      // pluck those for the card. Backward-tolerant: missing fields
+      // render as if no count was returned (defensive null).
+      const data = out.data as
+        | {
+            count?: { contacts?: number; assets?: number };
+            sample?: {
+              contacts?: Array<{ id?: string; name?: string }>;
+              assets?: Array<{ id?: string; name?: string }>;
+            };
+          }
+        | undefined;
+      const count = data?.count
+        ? {
+            contacts: Number(data.count.contacts ?? 0),
+            assets: Number(data.count.assets ?? 0),
+          }
+        : null;
+      const sample = data?.sample
+        ? {
+            contacts: (data.sample.contacts ?? [])
+              .map((r) => ({ id: String(r.id ?? ''), name: String(r.name ?? '') }))
+              .filter((s) => s.id && s.name),
+            assets: (data.sample.assets ?? [])
+              .map((r) => ({ id: String(r.id ?? ''), name: String(r.name ?? '') }))
+              .filter((s) => s.id && s.name),
+          }
+        : null;
+
       return {
         kind: 'panel_set',
         facets,
@@ -221,10 +277,20 @@ export function parseToolResult(
         pinnedAssetIds: a.pinnedAssetIds ?? [],
         search: a.search ? a.search : null,
         view: a.view ?? null,
+        count,
+        sample,
       };
     }
-    case 'clear_panel':
-      return { kind: 'panel_cleared' };
+    case 'clear_panel': {
+      const data = out.data as { count?: { contacts?: number; assets?: number } } | undefined;
+      const count = data?.count
+        ? {
+            contacts: Number(data.count.contacts ?? 0),
+            assets: Number(data.count.assets ?? 0),
+          }
+        : null;
+      return { kind: 'panel_cleared', count };
+    }
   }
   return null;
 }

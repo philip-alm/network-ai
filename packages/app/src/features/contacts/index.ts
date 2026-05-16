@@ -19,3 +19,9 @@ export {
   isAssetFilterEmpty,
 } from './panelLogic';
 export { WarmthDot } from './WarmthDot';
+export {
+  useNavigateToRow,
+  type NavigateKind,
+  type NavigateOptions,
+  type NavigateToRow,
+} from './useNavigateToRow';

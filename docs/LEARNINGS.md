@@ -529,6 +529,100 @@ visual bug persisted in screenshots.
 
 ---
 
+## L17 — LLM provider keys belong only in the Edge Function, never in the bundle
+
+**What it is.** Reknowable's chat LLM goes through a fallback chain
+of four providers (Cerebras GLM 4.7 → Groq gpt-oss-120b → Fireworks
+Kimi K2.5 → OpenRouter Gemini 3 Flash). The chain lives in the
+`agent-chat` Edge Function. The browser knows nothing about
+providers — it sends an OpenAI-compatible body to one URL
+(`${supabase}/functions/v1/agent-chat`) with the user's Supabase JWT
+as the only auth, and the Edge Function picks a provider, attaches
+the provider's Bearer key from `Deno.env`, and pipes the upstream
+SSE response back.
+
+**Why it matters.** Any provider key that lands in the browser
+bundle is one `view-source` away from being exfiltrated. Tier-1
+inference providers don't have OpenRouter-style spend caps; a leaked
+Cerebras / Groq / Fireworks key can run a 5-digit bill before the
+key gets rotated. The Edge Function pattern keeps the keys
+server-side AND lets us implement provider fallback without ever
+exposing which provider is being used to the network boundary.
+
+**How to apply.**
+
+- Browser code MUST go through `${supabase}/functions/v1/agent-chat`.
+  Never call provider URLs directly, never read provider keys from
+  client env. The `env.openrouterApiKey` field in `lib/env` always
+  resolves to `null` in the browser bundle by design (Next.js strips
+  non-`NEXT_PUBLIC_` vars), and no production code path consumes it.
+- Edge Function reads keys via `Deno.env.get(NAME)` only. Each
+  attempted provider call is `fetch(provider.endpoint, { headers: {
+Authorization: 'Bearer ' + apiKey } })` — the key never travels
+  back to the browser, never lands in logs (we log labels and error
+  bodies, not keys).
+- Keys go in Edge Function secrets (`supabase secrets set NAME=…`)
+  for production, and in `supabase/.env` for local dev.
+- When you add a 5th provider, add it to `llm/provider.ts`, slot it
+  into the chain in `llm/chain.ts` at the right tier, document the
+  `extraBody` knobs, and add a key to both `.env.example` files.
+  Update this learning if the security model changes.
+- Test the security model by `grep`-ing for the literal provider URL
+  in `apps/web/.next/static` after a build. The string should NOT
+  appear. If it does, you accidentally inlined the URL into client
+  code — extract it into the Edge Function.
+
+**Sources.** `supabase/functions/agent-chat/llm/{provider,client,chain}.ts`,
+`supabase/functions/agent-chat/index.ts`. Pattern ported from
+Incredible's `crates/llm-client/src/stream.rs::LlmClient::with_fallback`
+on 2026-05-16.
+
+---
+
+## L18 — Fallback fires only on pre-stream failures
+
+**What it is.** The chain (L17) only walks down to the next provider
+when the primary fails **before** any SSE bytes arrive — pre-stream
+network errors, pre-stream HTTP 429, pre-stream HTTP 5xx. Mid-stream
+errors (provider drops the connection halfway through, sends a
+malformed delta, etc.) are **not** retried. The client also does NOT
+retry on 4xx-other-than-429 (auth, bad schema — our bug, not the
+provider's) and does NOT retry on user abort.
+
+**Why it matters.** Once SSE bytes have started flowing, the AI SDK
+on the client is already mid-assembly of a tool call or mid-render
+of an assistant message. Switching providers at that point would
+produce a corrupted tool call (no second-half arguments) or a
+visible seam in the rendered text. The Rust source comment puts it
+bluntly: "by then the user may already be hearing audio from the
+partial response, and swapping models mid-utterance would produce
+audible seams." Reknowable has no audio but the tool-call corruption
+risk is identical.
+
+Retrying 4xx-other-than-429 is also wrong: a bad-schema body will
+fail at every provider, so we'd just burn the fallback's quota.
+Auth failures need a key rotation, not a different provider.
+
+**How to apply.**
+
+- Classify errors before retrying. `isRetriable` in
+  `agent-chat/llm/errors.ts` is the only place this decision lives —
+  if you find yourself doing ad-hoc retry logic elsewhere, fold it
+  in there or you'll drift.
+- For new error categories, default to NOT retriable. Opt in
+  explicitly only when you've thought through the cost: "is this
+  failure mode infra-level, will a different provider succeed, and
+  is there zero risk of mid-stream state being already established?"
+- Aborts (`signal.aborted` after the fetch promise rejects) are
+  ALWAYS non-retriable: the user opted out; serving them a result
+  from a different provider would be a UX violation.
+
+**Sources.** `supabase/functions/agent-chat/llm/client.ts`
+(`attemptWithFallback` + the abort check), `errors.ts` (`isRetriable`).
+Mirrors Incredible's `crates/llm-client/src/stream.rs::is_retriable`.
+
+---
+
 ## When to write a new learning
 
 - A bug took more than 20 minutes to diagnose AND the root cause

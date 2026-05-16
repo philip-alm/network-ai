@@ -1,16 +1,16 @@
 'use client';
 
 import { motion, AnimatePresence } from 'motion/react';
-import type { LoadingPhase } from '../../lib/store';
 
 /**
  * LoadingMoreTail — quiet "Loading more…" stub at the bottom of the
- * list during background pagination. Hidden when phase ≠ 'paginating'.
+ * list during scroll-prefetch. Drives off a `visible` boolean so it
+ * can be wired to either a loading phase or an `isLoadingMore` flag.
  */
-export function LoadingMoreTail({ phase }: { phase: LoadingPhase }) {
+export function LoadingMoreTail({ visible }: { visible: boolean }) {
   return (
     <AnimatePresence>
-      {phase === 'paginating' ? (
+      {visible ? (
         <motion.div
           key="loading-more"
           initial={{ opacity: 0, y: 4 }}

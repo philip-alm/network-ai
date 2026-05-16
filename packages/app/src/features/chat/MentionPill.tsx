@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'motion/react';
-import { useNetworkStore } from '../../lib/store';
+import { useNavigateToRow } from '../contacts/useNavigateToRow';
 
 /**
  * MentionPill — an inline reference to a contact or asset that the user
@@ -17,6 +17,13 @@ import { useNetworkStore } from '../../lib/store';
  * The protocol prefix (`contact:` / `asset:`) routes to MentionPill
  * via the Markdown component's `a` override. Plain external links
  * stay external.
+ *
+ * Click behavior is via `useNavigateToRow`, which guarantees the row
+ * will scroll into view EVEN IF the panel is in the wrong view or the
+ * row isn't in the loaded slice — it toggles view if needed, fetches
+ * via lookup_*_by_ids, upserts into the store, then scrolls (using the
+ * virtualizer's scrollToIndex for off-screen rows). No more "click does
+ * nothing."
  */
 export function MentionPill({
   kind,
@@ -27,12 +34,12 @@ export function MentionPill({
   id: string;
   children: React.ReactNode;
 }) {
-  const jumpTo = useNetworkStore((s) => s.actions.jumpTo);
+  const navigate = useNavigateToRow();
 
   return (
     <motion.button
       type="button"
-      onClick={() => jumpTo(id)}
+      onClick={() => void navigate(kind, id)}
       whileTap={{ scale: 0.97 }}
       transition={{ duration: 0.12, ease: [0.23, 1, 0.32, 1] }}
       data-testid={`mention-${kind}-${id}`}

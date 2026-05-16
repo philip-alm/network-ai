@@ -27,6 +27,10 @@ export type Contact = {
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;
+  /** Server-computed count of alive assets owned by this contact.
+   *  Populated by query_contacts_page; absent on optimistic upserts and
+   *  realtime payloads (consumers should treat absence as "unknown"). */
+  asset_count?: number;
 };
 
 export type Asset = {
@@ -81,7 +85,11 @@ export type ContactSortMode =
 
 export type AssetSortMode = 'updated_desc' | 'created_desc' | 'name_asc' | 'name_desc';
 
-export type PanelViewMode = 'contacts' | 'both' | 'assets';
+/** Right-pane view: people (Network) OR things (Assets). We deliberately
+ *  do NOT support a "both" view — stacking two paginated lists in one
+ *  scroller breaks the scroll-to-load-more trigger and creates an
+ *  ambiguous bottom. Two clean toggles, clean pagination per kind. */
+export type PanelViewMode = 'contacts' | 'assets';
 
 /** Backward-compat alias used by older imports. */
 export type PanelFilterState = ContactFilterState;
@@ -133,7 +141,7 @@ export const DEFAULT_PANEL_STATE: PanelState = {
   search: '',
   pinnedContactIds: [],
   pinnedAssetIds: [],
-  view: 'both',
+  view: 'contacts',
 };
 
 /**
@@ -157,19 +165,51 @@ export type LoadingState = {
   total: number | null;
 };
 
+/** Tracks which panel facets the AGENT most-recently touched. Drives
+ *  the AI badge on filter chips + the agent-applied-flash animation
+ *  on the affected control. Cleared when the user manually changes
+ *  that facet (the user took it over). */
+export type PanelFacetKey =
+  | 'contactFilter'
+  | 'assetFilter'
+  | 'contactSort'
+  | 'assetSort'
+  | 'search'
+  | 'pinnedContactIds'
+  | 'pinnedAssetIds'
+  | 'view';
+
 type State = {
   contacts: Contact[];
   assets: Asset[];
   /** Row id (contact or asset) currently highlighted in the accordion. */
   highlightedId: string | null;
-  /** Bumps when a "scroll-to" intent fires — accordion listens via selector. */
-  scrollIntent: { id: string; nonce: number } | null;
+  /** Bumps when a "scroll-to" intent fires.
+   *
+   *  Two layers listen:
+   *  1. `VirtualPanelList` reads (kind, id), finds the row's index in the
+   *     current item list, and calls `virtualizer.scrollToIndex` so an
+   *     off-screen row scrolls into the render window FIRST. Without
+   *     this, virtualization silently drops the intent for any row not
+   *     currently mounted (~> 30 rows below the fold).
+   *  2. `ContactRow` / `AssetRow` listen for their own id and run the
+   *     local "scroll into view + open + clear highlight after 1.2s"
+   *     effect — but only AFTER the virtualizer has mounted them.
+   *
+   *  `kind` is carried so the virtualizer knows whether to look for a
+   *  contact item or an asset item; it also makes "wrong-view" navigations
+   *  diagnosable in traces. */
+  scrollIntent: { id: string; kind: 'contact' | 'asset'; nonce: number } | null;
   /** Right-pane filter/sort/view, controlled by user UI AND the agent. */
   panel: PanelState;
   /** Snapshot from BEFORE the agent's last set_panel call. Lets the
    *  chat-side ToolCallCard offer an Undo. Null when no AI-driven
    *  change is in effect. */
   panelUndoSnapshot: PanelState | null;
+  /** Which facets the agent last touched. UI uses this to show an AI
+   *  badge on filter chips + briefly glow the changed controls. The
+   *  user clearing a facet manually removes it from the set. */
+  aiSetFacets: Set<PanelFacetKey>;
   /** Where the network pane is in its first-load lifecycle. */
   loading: LoadingState;
   /** Set of row ids the UI has already animated in (cascade fade).
@@ -184,14 +224,32 @@ type State = {
 type Actions = {
   /** Replace the entire snapshot — typically called from useContacts after refetch. */
   setSnapshot: (snap: { contacts: Contact[]; assets: Asset[] }) => void;
-  /** Merge one or more rows (insert or update). Filters by id. */
+  /** Replace ONLY the contacts list (preserves assets). Used when the
+   *  contact filter/sort changes — assets are unaffected. */
+  replaceContacts: (rows: Contact[]) => void;
+  /** Replace ONLY the assets list (preserves contacts). */
+  replaceAssets: (rows: Asset[]) => void;
+  /** Merge one or more rows (insert or update). Filters by id.
+   *  Preserves the existing sort order (newest updated_at first). */
   upsertContacts: (rows: Contact[]) => void;
   upsertAssets: (rows: Asset[]) => void;
+  /** Append rows to the end of the current list — used by loadMore
+   *  pagination. Server already sorted them; keep their order intact. */
+  appendContacts: (rows: Contact[]) => void;
+  appendAssets: (rows: Asset[]) => void;
   /** Remove a row by id (treats it as deleted regardless of deleted_at). */
   removeContact: (id: string) => void;
   removeAsset: (id: string) => void;
-  /** Highlight a row + trigger the accordion to scroll to it. */
-  jumpTo: (id: string) => void;
+  /** Highlight a row + trigger the accordion to scroll to it.
+   *
+   *  `kind` is required so the virtualizer can locate the row even
+   *  when it's not currently mounted (the row's own scrollIntent
+   *  listener cannot fire if the component isn't rendered). For typical
+   *  call sites, prefer `useNavigateToRow` — it switches view + fetches
+   *  missing rows + retries the jump after upsert. Raw `jumpTo` only
+   *  makes sense when you KNOW the row is in the loaded set AND the
+   *  active view matches its kind. */
+  jumpTo: (id: string, kind: 'contact' | 'asset') => void;
   /** Clear the highlight (after the pulse animation completes). */
   clearHighlight: () => void;
   /** Merge a partial panel-state update. Both UI controls AND the agent
@@ -228,6 +286,7 @@ export const useNetworkStore = create<State & { actions: Actions }>((set) => ({
   scrollIntent: null,
   panel: DEFAULT_PANEL_STATE,
   panelUndoSnapshot: null,
+  aiSetFacets: new Set<PanelFacetKey>(),
   loading: { phase: 'cold', total: null },
   seenIds: new Set<string>(),
   recentlyUpdatedIds: new Map<string, number>(),
@@ -239,9 +298,29 @@ export const useNetworkStore = create<State & { actions: Actions }>((set) => ({
         assets: assets.filter((a) => !a.deleted_at),
       }),
 
+    replaceContacts: (rows) => set({ contacts: rows.filter((c) => !c.deleted_at) }),
+
+    replaceAssets: (rows) => set({ assets: rows.filter((a) => !a.deleted_at) }),
+
+    appendContacts: (rows) =>
+      set((s) => {
+        // Dedupe by id — if a row arrived via realtime since the page
+        // fetch was issued, keep the realtime version (latest).
+        const seen = new Set(s.contacts.map((c) => c.id));
+        const toAdd = rows.filter((r) => !r.deleted_at && !seen.has(r.id));
+        return toAdd.length > 0 ? { contacts: [...s.contacts, ...toAdd] } : {};
+      }),
+
+    appendAssets: (rows) =>
+      set((s) => {
+        const seen = new Set(s.assets.map((a) => a.id));
+        const toAdd = rows.filter((r) => !r.deleted_at && !seen.has(r.id));
+        return toAdd.length > 0 ? { assets: [...s.assets, ...toAdd] } : {};
+      }),
+
     upsertContacts: (rows) =>
       set((s) =>
-        mergeRows(
+        mergeWithoutReSorting(
           s.contacts,
           rows,
           (c) => c.id,
@@ -252,7 +331,7 @@ export const useNetworkStore = create<State & { actions: Actions }>((set) => ({
 
     upsertAssets: (rows) =>
       set((s) =>
-        mergeRows(
+        mergeWithoutReSorting(
           s.assets,
           rows,
           (a) => a.id,
@@ -265,10 +344,10 @@ export const useNetworkStore = create<State & { actions: Actions }>((set) => ({
 
     removeAsset: (id) => set((s) => ({ assets: s.assets.filter((a) => a.id !== id) })),
 
-    jumpTo: (id) =>
+    jumpTo: (id, kind) =>
       set({
         highlightedId: id,
-        scrollIntent: { id, nonce: Date.now() },
+        scrollIntent: { id, kind, nonce: Date.now() },
       }),
 
     clearHighlight: () => set({ highlightedId: null }),
@@ -286,16 +365,26 @@ export const useNetworkStore = create<State & { actions: Actions }>((set) => ({
             ? { ...s.panel.assetFilter, ...patch.assetFilter }
             : s.panel.assetFilter,
         };
+        // Track which facets the agent touched. The user manually
+        // changing a facet removes it from the AI set (they took it
+        // over). The agent touching a facet adds it.
+        const nextAi = new Set(s.aiSetFacets);
+        for (const key of Object.keys(patch) as PanelFacetKey[]) {
+          if (fromAgent) nextAi.add(key);
+          else nextAi.delete(key);
+        }
         return {
           panel: nextPanel,
           // Capture an Undo snapshot only when the agent drives the
           // change. User-initiated changes are part of their own muscle
           // memory and don't need an Undo affordance.
           panelUndoSnapshot: fromAgent ? s.panel : s.panelUndoSnapshot,
+          aiSetFacets: nextAi,
         };
       }),
 
-    restorePanelState: (snapshot) => set({ panel: snapshot, panelUndoSnapshot: null }),
+    restorePanelState: (snapshot) =>
+      set({ panel: snapshot, panelUndoSnapshot: null, aiSetFacets: new Set() }),
 
     clearPanelFilters: () =>
       set((s) => ({
@@ -308,9 +397,11 @@ export const useNetworkStore = create<State & { actions: Actions }>((set) => ({
           pinnedAssetIds: [],
         },
         panelUndoSnapshot: null,
+        aiSetFacets: new Set(),
       })),
 
-    resetPanel: () => set({ panel: DEFAULT_PANEL_STATE, panelUndoSnapshot: null }),
+    resetPanel: () =>
+      set({ panel: DEFAULT_PANEL_STATE, panelUndoSnapshot: null, aiSetFacets: new Set() }),
 
     setLoading: (next) => set((s) => ({ loading: { ...s.loading, ...next } })),
 
@@ -339,26 +430,48 @@ export const useNetworkStore = create<State & { actions: Actions }>((set) => ({
   },
 }));
 
-function mergeRows<T, K extends 'contacts' | 'assets'>(
+/**
+ * mergeWithoutReSorting — merge incoming rows into existing without
+ * re-sorting the result. Rows already in the list keep their position
+ * (their updated values overwrite in place). New rows are prepended so
+ * the user sees their latest action at the top — the next refetch from
+ * the server will reconcile them into the correct sort position.
+ *
+ * The previous `mergeRows` always re-sorted by `updated_at DESC`,
+ * which silently broke the user's chosen sort whenever an optimistic
+ * insert or a realtime upsert landed. The server is the source of
+ * truth for ordering; the store shouldn't impose a different one.
+ */
+function mergeWithoutReSorting<T, K extends 'contacts' | 'assets'>(
   existing: T[],
   incoming: T[],
   keyFn: (t: T) => string,
   isDeleted: (t: T) => boolean,
   field: K,
 ): Partial<State> {
-  const byId = new Map<string, T>();
-  for (const r of existing) byId.set(keyFn(r), r);
+  const existingIds = new Set(existing.map(keyFn));
+  const incomingById = new Map<string, T>();
+  const toDelete = new Set<string>();
   for (const r of incoming) {
-    if (isDeleted(r)) byId.delete(keyFn(r));
-    else byId.set(keyFn(r), r);
+    const id = keyFn(r);
+    if (isDeleted(r)) toDelete.add(id);
+    else incomingById.set(id, r);
   }
-  const merged = Array.from(byId.values());
-  // Stable order: newest updated_at first, falling back to id.
-  merged.sort((a, b) => {
-    const at = ((a as unknown as { updated_at?: string }).updated_at ?? '') as string;
-    const bt = ((b as unknown as { updated_at?: string }).updated_at ?? '') as string;
-    if (at !== bt) return at < bt ? 1 : -1;
-    return keyFn(a) < keyFn(b) ? -1 : 1;
-  });
-  return { [field]: merged } as Partial<State>;
+
+  // In-place update for existing rows; collect brand-new rows separately.
+  const updated: T[] = [];
+  for (const row of existing) {
+    const id = keyFn(row);
+    if (toDelete.has(id)) continue;
+    updated.push(incomingById.get(id) ?? row);
+  }
+  // New rows (not in existing) prepended in the order they arrived.
+  const prepended: T[] = [];
+  for (const r of incoming) {
+    const id = keyFn(r);
+    if (isDeleted(r)) continue;
+    if (existingIds.has(id)) continue;
+    prepended.push(r);
+  }
+  return { [field]: [...prepended, ...updated] } as Partial<State>;
 }

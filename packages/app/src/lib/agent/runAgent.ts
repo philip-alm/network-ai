@@ -20,6 +20,7 @@ import type { SupabaseClient } from '../supabase';
 import { systemPrompt } from './systemPrompt';
 import { noopDebugRecorder, type DebugRecorder } from './debugRecorder';
 import { normalizeHistory, type NormalizableMessage } from './normalizeHistory';
+import { applyContextGuard } from './contextGuard';
 import {
   classifyError,
   isRecoverable,
@@ -133,7 +134,23 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
     const raw = buildMessages(opts, teachingExtras);
     let messages: ModelMessage[];
     try {
-      messages = normalizeHistory(raw as unknown as NormalizableMessage[]) as ModelMessage[];
+      const normalized = normalizeHistory(
+        raw as unknown as NormalizableMessage[],
+      ) as ModelMessage[];
+      // Context guard: keep the message payload under a hard 400k
+      // character budget by dropping OLDEST user-led pairs (a user
+      // message + its assistant reply + any tool results, dropped
+      // together to preserve the wire-format contract). The current
+      // user prompt is never dropped. No summarization, no field
+      // stripping — just truncation by age.
+      const guarded = applyContextGuard(normalized as unknown as NormalizableMessage[]);
+      if (guarded.actions.length > 0) {
+        recorder.recordTimeline('context/guarded', {
+          actions: guarded.actions,
+          estimated_chars: guarded.estimatedChars,
+        });
+      }
+      messages = guarded.messages as unknown as ModelMessage[];
     } catch (err) {
       const agentErr = classifyError(err);
       recorder.recordTimeline('history/malformed', {
@@ -312,19 +329,29 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
         }
       }
 
+      const finishReason = (await stream.finishReason) ?? 'unknown';
       recorder.recordTimeline('llm/finished', {
         attempt,
         text_length: finalText.length,
         tool_calls: finalToolCalls.length,
+        finish_reason: finishReason,
+        // Compact segment summary so a single trace line tells the
+        // story: ['text:42', 'tool:find', 'text:128', 'tool:query_sql'].
+        // Full segment payloads stay in the chat UI; here we just need
+        // shape + last-element kind to spot silent stops at a glance.
+        segments_summary: segments.map((s) =>
+          s.kind === 'text' ? `text:${s.text.length}` : `tool:${s.call.name}`,
+        ),
       });
       recorder.endTurn('ok');
+      await recorder.flush?.();
       opts.callbacks?.onPhaseChange?.('done');
 
       return {
         text: finalText,
         toolCalls: finalToolCalls,
         segments,
-        finishReason: (await stream.finishReason) ?? 'unknown',
+        finishReason,
         debugPath: recorder.path,
         retriesUsed,
         interrupted,
@@ -341,6 +368,7 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
       if (opts.abortSignal?.aborted) {
         interrupted = true;
         recorder.endTurn('error', 'interrupted');
+        await recorder.flush?.();
         opts.callbacks?.onPhaseChange?.('idle');
         return {
           text: '(interrupted)',
@@ -355,6 +383,7 @@ export async function runAgentTurn(opts: RunAgentOptions): Promise<AgentTurnResu
 
       if (!isRecoverable(agentErr) || attempt === MAX_TEACH_RETRIES) {
         recorder.endTurn('error', agentErr.kind);
+        await recorder.flush?.();
         opts.callbacks?.onPhaseChange?.('idle');
         throw err;
       }

@@ -28,25 +28,30 @@ type Counts = {
   warmth: Array<[number, number]>;
 };
 
-function inventory(contacts: Contact[]): Counts {
-  const tagMap = new Map<string, number>();
-  const cityMap = new Map<string, number>();
-  const warmthMap = new Map<number, number>();
-  for (const c of contacts) {
-    for (const t of c.tags) tagMap.set(t, (tagMap.get(t) ?? 0) + 1);
-    if (c.city) cityMap.set(c.city, (cityMap.get(c.city) ?? 0) + 1);
-    if (c.warmth != null) warmthMap.set(c.warmth, (warmthMap.get(c.warmth) ?? 0) + 1);
-  }
-  const byCount = <T,>(a: [T, number], b: [T, number]): number => b[1] - a[1];
+/** Smart-filter facets, pre-aggregated server-side by the
+ *  network_facets RPC. Drives this component's chip lists with
+ *  counts that reflect the WHOLE user network — not just the
+ *  currently-loaded page. */
+export type FilterFacets = {
+  cities: Array<{ value: string; count: number }>;
+  tags: Array<{ value: string; count: number }>;
+  warmth: Array<{ value: number; count: number }>;
+};
+
+function facetsToCounts(f: FilterFacets): Counts {
   return {
-    tags: [...tagMap.entries()].sort(byCount),
-    cities: [...cityMap.entries()].sort(byCount),
-    warmth: [...warmthMap.entries()].sort((a, b) => a[0] - b[0]),
+    tags: f.tags.map((x) => [x.value, x.count] as [string, number]),
+    cities: f.cities.map((x) => [x.value, x.count] as [string, number]),
+    warmth: f.warmth.map((x) => [x.value, x.count] as [number, number]),
   };
 }
 
 export type ContactFilterProps = {
-  contacts: Contact[];
+  /** Pre-aggregated facets (cities/tags/warmth) for the WHOLE user
+   *  network, fetched by useContacts via the network_facets RPC.
+   *  At scale we can't compute facets client-side from a page of 200,
+   *  so we trust the server. */
+  facets: FilterFacets;
   value: ContactFilterState;
   onChange: (next: ContactFilterState) => void;
 };
@@ -57,7 +62,7 @@ export type ContactFilterProps = {
  * city options by frequency (most common first). Portaled to escape
  * the contacts pane's overflow:hidden clipping.
  */
-export function ContactFilter({ contacts, value, onChange }: ContactFilterProps) {
+export function ContactFilter({ facets, value, onChange }: ContactFilterProps) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -68,7 +73,7 @@ export function ContactFilter({ contacts, value, onChange }: ContactFilterProps)
     setMounted(true);
   }, []);
 
-  const counts = useMemo(() => inventory(contacts), [contacts]);
+  const counts = useMemo(() => facetsToCounts(facets), [facets]);
   const totalChips = counts.tags.length + counts.cities.length + counts.warmth.length;
   const hasAnyData = totalChips > 0;
   const activeCount =

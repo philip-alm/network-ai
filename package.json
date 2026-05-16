@@ -33,6 +33,7 @@
     "verify:deployed": "tsx scripts/verify-deployed.ts",
     "verify:browser": "tsx scripts/verify-browser.ts",
     "verify:all": "tsx scripts/verify-all.ts",
+    "last-turn": "tsx scripts/last-turn.ts",
     "db:up": "supabase migration up --local",
     "db:reset": "supabase db reset --local",
     "db:status": "supabase migration list --local && echo '\\n(local only; remote is opt-in)'",

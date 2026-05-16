@@ -4,27 +4,24 @@
  *   - http/mailto/tel/#hash/relative — pass through as regular links
  *   - javascript: / data: / file: — stripped (sanitizer)
  *
- * The MentionPill itself is a Zustand-consumer; we mock the store
- * minimally to assert the click target is rendered with the right id.
+ * MentionPill now uses `useNavigateToRow` (which handles fetch-on-miss
+ * for unloaded ids, view-toggle if needed, and the virtualizer scroll
+ * for off-screen rows). We mock that hook directly — the underlying
+ * store + Supabase paths don't need to be exercised here.
  */
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Markdown } from './Markdown';
 
-const jumpToSpy = vi.fn();
+const navigateSpy = vi.fn();
 
-vi.mock('../../lib/store', async (orig) => {
-  const actual = await orig<typeof import('../../lib/store')>();
-  return {
-    ...actual,
-    useNetworkStore: ((selector: (s: unknown) => unknown) =>
-      selector({ actions: { jumpTo: jumpToSpy } })) as unknown as typeof actual.useNetworkStore,
-  };
-});
+vi.mock('../contacts/useNavigateToRow', () => ({
+  useNavigateToRow: () => navigateSpy,
+}));
 
 beforeEach(() => {
-  jumpToSpy.mockReset();
+  navigateSpy.mockReset();
 });
 
 describe('Markdown · mention links', () => {
@@ -35,7 +32,7 @@ describe('Markdown · mention links', () => {
     const pill = screen.getByTestId('mention-contact-6b0f4f80-aaaa-bbbb-cccc-dddddddddddd');
     expect(pill.textContent).toContain('Viktor Nord');
     fireEvent.click(pill);
-    expect(jumpToSpy).toHaveBeenCalledWith('6b0f4f80-aaaa-bbbb-cccc-dddddddddddd');
+    expect(navigateSpy).toHaveBeenCalledWith('contact', '6b0f4f80-aaaa-bbbb-cccc-dddddddddddd');
   });
 
   it('renders [Name](asset:uuid) as an asset mention', () => {

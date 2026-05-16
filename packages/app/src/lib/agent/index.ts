@@ -26,6 +26,7 @@ export { makeTools, type EmbedQueryFn, type AgentTools } from './tools';
 export { systemPrompt, MODEL_ID, TOOL_NAMES, type ToolName } from './systemPrompt';
 
 export { noopDebugRecorder, type DebugRecorder } from './debugRecorder';
+export { createHttpDebugRecorder, type HttpDebugRecorderOptions } from './httpDebugRecorder';
 // NOTE: createNodeDebugRecorder lives at '@reknowable/app/lib/agent/nodeDebugRecorder'
 // so the browser bundle doesn't try to resolve `node:fs` / `node:path` / `node:os`.
 

@@ -12,6 +12,7 @@ import {
 import type { Segment } from '../../lib/agent/segments';
 import { useNetworkStore } from '../../lib/store';
 import type { ChatMessage } from './MessageBubble';
+import { computeAutoPinUpdate } from './autoPinFromMentions';
 
 export type UseAgentLoopOptions = {
   userId: string;
@@ -212,13 +213,32 @@ export function useAgentLoop({ userId, threadId }: UseAgentLoopOptions): UseAgen
         // Final commit for the currently-active bubble. Slice segments
         // into the post-split slice in case a steering split happened.
         const finalSegments = result.segments.slice(segmentSplitIndexRef.current);
+        const finalText = result.text || (result.interrupted ? 'Stopped.' : '');
         updateAssistant((m) => ({
           ...m,
-          text: result.text || (result.interrupted ? 'Stopped.' : ''),
+          text: finalText,
           toolCalls: result.toolCalls as AgentToolInvocation[],
           segments: finalSegments,
           streaming: false,
         }));
+
+        // Protocol-level RULE 1 enforcement: every contact the agent
+        // mentioned via [Name](contact:UUID) in its final text MUST be
+        // in the pinned set. The agent's `set_panel` calls don't always
+        // cover its own mentions (failure mode reproduced on 2026-05-16);
+        // this guarantees the invariant from the UI side. See
+        // `autoPinFromMentions.ts` for the why-this-exists comment.
+        if (!result.interrupted) {
+          const currentPinned = useNetworkStore.getState().panel.pinnedContactIds;
+          const update = computeAutoPinUpdate(finalText, currentPinned);
+          if (update) {
+            storeActions.setPanelState(
+              { pinnedContactIds: update.nextPinned },
+              { source: 'agent' },
+            );
+          }
+        }
+
         setPhase('idle');
         setRetryHint(null);
         // Belt-and-suspenders: trigger a network-side refetch in case
@@ -357,10 +377,34 @@ function applyOptimistic(
 ): void {
   if (tc.name !== 'mutate_sql') return;
   const rows = extractMutationRows(tc.args, tc.result);
-  if (rows.upsertContacts.length > 0) actions.upsertContacts(rows.upsertContacts);
-  if (rows.upsertAssets.length > 0) actions.upsertAssets(rows.upsertAssets);
+
+  // CRITICAL: only optimistic-upsert rows whose id is ALREADY in the
+  // loaded set (i.e. UPDATES — patch in place, no position change).
+  // For brand-new ids (INSERTs), do nothing — the refetch fired below
+  // will bring the row in at its correct server-sorted position. If we
+  // prepended new rows here, the user would see a "shift to position 0
+  // → re-sort to position 47" double jump that looks chaotic.
+  const state = useNetworkStore.getState();
+  const knownContactIds = new Set(state.contacts.map((c) => c.id));
+  const knownAssetIds = new Set(state.assets.map((a) => a.id));
+
+  const contactUpdates = rows.upsertContacts.filter((c) => knownContactIds.has(c.id));
+  const assetUpdates = rows.upsertAssets.filter((a) => knownAssetIds.has(a.id));
+
+  if (contactUpdates.length > 0) actions.upsertContacts(contactUpdates);
+  if (assetUpdates.length > 0) actions.upsertAssets(assetUpdates);
+
+  // Deletes are always optimistic — vanishing IS the user intent. The
+  // refetch confirms.
   for (const id of rows.removeContactIds) actions.removeContact(id);
   for (const id of rows.removeAssetIds) actions.removeAsset(id);
+
+  // Trigger the refetch immediately so brand-new rows appear in the
+  // correct sort position within ~100ms. Without this, new rows would
+  // wait until the agent's turn fully ended.
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('reknowable:network-changed'));
+  }
 }
 
 // Re-export for callers that still want a streamingSegments slot —

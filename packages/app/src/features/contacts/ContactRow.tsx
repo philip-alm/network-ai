@@ -17,6 +17,7 @@ import { getBrowserSupabase } from '../../lib/supabase';
 import { WarmthBar, Tag, WithTooltip, SoftDivider, type TagKind } from '../ui';
 import { iconForAsset } from './assetIcons';
 import { useIsRecentlyUpdated } from './realtimeTint';
+import { useOwnedAssets } from './useOwnedAssets';
 
 /**
  * Map free-form tag strings to a TagKind so the same tag word always
@@ -76,7 +77,9 @@ function ContactRowInner({ contact, ownAssets, onDelete }: ContactRowProps) {
   // re-filter the full assets list on every render.
 
   useEffect(() => {
-    if (!scrollIntent || scrollIntent.id !== contact.id) return;
+    if (!scrollIntent || scrollIntent.kind !== 'contact' || scrollIntent.id !== contact.id) {
+      return;
+    }
     rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setOpen(true);
     const t = setTimeout(() => clearHighlight(), 1200);
@@ -149,6 +152,20 @@ function ContactRowInner({ contact, ownAssets, onDelete }: ContactRowProps) {
 
   const recentlyUpdated = useIsRecentlyUpdated(contact.id);
 
+  // Lazy-fetch the COMPLETE owned-asset set the first time the row is
+  // opened. The `ownAssets` prop is only the currently-loaded slice
+  // (could be empty or partial at scale). We fall back to it while
+  // the fetch is in flight so the open animation is never blank.
+  const { assets: fullOwnedAssets, isLoading: fetchingOwnedAssets } = useOwnedAssets(
+    contact.id,
+    open,
+  );
+  const displayedOwnedAssets = fullOwnedAssets ?? ownAssets;
+  // True authoritative count: prefer server's asset_count, else the
+  // full lazy-loaded set, else the prop fallback.
+  const ownedAssetCount =
+    contact.asset_count ?? (fullOwnedAssets ? fullOwnedAssets.length : ownAssets.length);
+
   return (
     <motion.div
       ref={rowRef}
@@ -208,13 +225,11 @@ function ContactRowInner({ contact, ownAssets, onDelete }: ContactRowProps) {
           </span>
         ) : null}
         <span className="ml-auto inline-flex shrink-0 items-center gap-3 text-muted">
-          {ownAssets.length > 0 ? (
-            <WithTooltip
-              label={`${ownAssets.length} ${ownAssets.length === 1 ? 'asset' : 'assets'}`}
-            >
+          {ownedAssetCount > 0 ? (
+            <WithTooltip label={`${ownedAssetCount} ${ownedAssetCount === 1 ? 'asset' : 'assets'}`}>
               <span className="inline-flex items-center gap-1 text-[11px] tabular-nums">
                 <Briefcase size={11} aria-hidden className="text-faint" />
-                {ownAssets.length}
+                {ownedAssetCount}
               </span>
             </WithTooltip>
           ) : null}
@@ -338,16 +353,20 @@ function ContactRowInner({ contact, ownAssets, onDelete }: ContactRowProps) {
                 )}
               </Field>
 
-              {ownAssets.length > 0 ? <SoftDivider /> : null}
+              {ownedAssetCount > 0 ? <SoftDivider /> : null}
 
-              {ownAssets.length > 0 ? (
+              {ownedAssetCount > 0 ? (
                 <Field
-                  label={`Assets · ${ownAssets.length}`}
+                  label={
+                    fetchingOwnedAssets && displayedOwnedAssets.length < ownedAssetCount
+                      ? `Assets · ${displayedOwnedAssets.length} of ${ownedAssetCount}…`
+                      : `Assets · ${ownedAssetCount}`
+                  }
                   Icon={Briefcase}
                   iconClass="text-[var(--color-tag-amber-fg)]"
                 >
                   <ul className="space-y-2.5">
-                    {ownAssets.map((a) => {
+                    {displayedOwnedAssets.map((a) => {
                       const AIcon = iconForAsset(a.name, a.availability);
                       return (
                         <li key={a.id} className="text-fg">

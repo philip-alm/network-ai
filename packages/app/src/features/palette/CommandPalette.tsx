@@ -2,47 +2,86 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, User, Briefcase, CornerDownLeft, X } from 'lucide-react';
-import { useNetworkStore, type Contact, type Asset } from '../../lib/store';
-import { Kbd } from '../ui';
+import { Search, User, Briefcase, CornerDownLeft, X, Filter } from 'lucide-react';
+import { useNetworkStore } from '../../lib/store';
+import { applyContactFilter, applyAssetFilter } from '../contacts/panelLogic';
+import { useNavigateToRow } from '../contacts/useNavigateToRow';
+import { Kbd, WithTooltip } from '../ui';
+import { usePaletteSearch, type PaletteResult } from './usePaletteSearch';
 
 export type CommandPaletteProps = {
   open: boolean;
   onClose: () => void;
 };
 
-type Result =
-  | { kind: 'contact'; contact: Contact; score: number }
-  | { kind: 'asset'; asset: Asset; score: number };
-
 const MAX_RESULTS = 8;
 
 /**
  * CommandPalette — Reknowable's recall surface, invoked with ⌘K.
  *
- * Operator-grade: fuzzy search across contacts + assets, arrow-key
- * navigation, Enter to jump-to, Esc to close. The single most-frequent
- * recall affordance in the product after the chat composer.
+ * Two layers feed it:
  *
- * v1 scope (this file): client-side substring + token match against the
- * already-loaded store. Sub-100ms even on hundreds of contacts.
- * Future: swap to the agent's `find` tool for vector + FTS recall on
- * larger sets.
+ *   1. usePaletteSearch returns hybrid local + server results. Local
+ *      fires on frame 1 (substring + token over the loaded store);
+ *      server (`find_anything` RPC, debounced 80ms) augments with rows
+ *      from the user's WHOLE corpus — not just the right-pane's
+ *      currently-loaded slice. This closes the long-standing "Cmd+K
+ *      only shows what the panel happens to be displaying" gap.
+ *
+ *   2. useNavigateToRow handles the click. It toggles the right-pane
+ *      view if the result's kind doesn't match, fetches the row via
+ *      lookup_*_by_ids if it isn't already in the store, upserts it,
+ *      and fires scrollIntent — which the VirtualPanelList consumes
+ *      with virtualizer.scrollToIndex so off-screen rows scroll into
+ *      the render window before the row component's own open + pulse
+ *      effect runs. Together they guarantee click → land is reliable
+ *      regardless of pagination, virtualization, view, or filter.
+ *
+ * Outside-filter affordance: any result that wouldn't survive the
+ * active panel filter renders a subtle "filter" chip so the user
+ * understands "this isn't in the list you're looking at — clicking
+ * will surface it anyway." The row is still clickable. The chip's
+ * tooltip names the conflicting facet for clarity.
  */
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
-  const contacts = useNetworkStore((s) => s.contacts);
-  const assets = useNetworkStore((s) => s.assets);
-  const jumpTo = useNetworkStore((s) => s.actions.jumpTo);
+  const navigate = useNavigateToRow();
+  const panel = useNetworkStore((s) => s.panel);
+  const localAssets = useNetworkStore((s) => s.assets);
 
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const results = useMemo<Result[]>(
-    () => rankResults(query, contacts, assets, MAX_RESULTS),
-    [query, contacts, assets],
-  );
+  const { results, serverInflight, serverError } = usePaletteSearch(query, {
+    limit: MAX_RESULTS,
+  });
+
+  // Per-result "matches current filter" computation. Done here (not in
+  // the search hook) because matching is a presentation concern — the
+  // hook stays focused on "find candidate rows," and the palette
+  // decides how to surface filter conflicts. The check excludes
+  // `panel.search` deliberately: that's a separate search lane (the
+  // right-pane header search) and including it would mark almost
+  // everything "outside filter" whenever the user has typed there.
+  const matchesFilter = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const r of results) {
+      const key = resultKey(r);
+      if (r.kind === 'contact') {
+        const passes =
+          applyContactFilter([r.contact], panel.contactFilter, {
+            assets: localAssets,
+            search: '',
+          }).length > 0;
+        map.set(key, passes);
+      } else {
+        const passes = applyAssetFilter([r.asset], panel.assetFilter, { search: '' }).length > 0;
+        map.set(key, passes);
+      }
+    }
+    return map;
+  }, [results, panel.contactFilter, panel.assetFilter, localAssets]);
 
   useEffect(() => {
     if (!open) return;
@@ -56,10 +95,35 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     setHighlight((h) => Math.min(h, Math.max(0, results.length - 1)));
   }, [results.length]);
 
-  const choose = (r: Result): void => {
-    const id = r.kind === 'contact' ? r.contact.id : (r.asset.contact_id ?? r.asset.id);
-    jumpTo(id);
+  // Keep the active row scrolled into the visible list area. The
+  // palette's own listbox scrolls independently of the page; without
+  // this, arrowing past the visible window leaves the highlight off-
+  // screen.
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const el = list.querySelector<HTMLElement>(`#palette-result-${highlight}`);
+    if (!el) return;
+    el.scrollIntoView({ block: 'nearest' });
+  }, [highlight]);
+
+  const choose = (r: PaletteResult): void => {
+    // Close FIRST so the panel's view-toggle + scroll animations are
+    // not visually masked by the palette overlay. useNavigateToRow's
+    // promise continues in the background — the user sees the row
+    // scroll in immediately after the overlay fades.
     onClose();
+    if (r.kind === 'contact') {
+      void navigate('contact', r.contact.id);
+    } else {
+      // Assets: if attached, the visually useful target is usually the
+      // owning contact (matches the tool-card "Jump to" semantics). But
+      // unlike tool cards, the palette also surfaces unattached assets
+      // — for those there IS no contact to jump to, so we navigate to
+      // the asset row. Either way the AssetRow's scrollIntent listener
+      // does its open + pulse.
+      void navigate('asset', r.asset.id);
+    }
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -85,6 +149,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       return;
     }
   };
+
+  const totalLoaded = useNetworkStore.getState().contacts.length + localAssets.length;
 
   return (
     <AnimatePresence>
@@ -166,7 +232,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               className="max-h-[min(60vh,420px)] overflow-y-auto py-1"
             >
               {results.length === 0 ? (
-                <EmptyResults query={query} hasAny={contacts.length + assets.length > 0} />
+                <EmptyResults
+                  query={query}
+                  hasAny={totalLoaded > 0}
+                  serverInflight={serverInflight}
+                />
               ) : (
                 results.map((r, i) => (
                   <ResultRow
@@ -174,6 +244,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                     id={`palette-result-${i}`}
                     result={r}
                     highlighted={i === highlight}
+                    outsideFilter={matchesFilter.get(resultKey(r)) === false}
                     onMouseEnter={() => setHighlight(i)}
                     onClick={() => choose(r)}
                   />
@@ -192,9 +263,12 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 <Kbd size="sm">Esc</Kbd>
                 <span>close</span>
               </span>
-              <span className="font-mono">
-                {results.length} {results.length === 1 ? 'result' : 'results'}
-              </span>
+              <FooterStatus
+                resultCount={results.length}
+                serverInflight={serverInflight}
+                serverError={serverError}
+                query={query}
+              />
             </div>
           </motion.div>
         </motion.div>
@@ -203,16 +277,60 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   );
 }
 
+function FooterStatus({
+  resultCount,
+  serverInflight,
+  serverError,
+  query,
+}: {
+  resultCount: number;
+  serverInflight: boolean;
+  serverError: string | null;
+  query: string;
+}) {
+  // Priority: error > inflight > count. The error line is one tap-
+  // friendly sentence; no stack traces. Inflight gets a soft animated
+  // pulse so the user knows the result list may expand.
+  if (serverError && query) {
+    return (
+      <WithTooltip label={`find_anything: ${serverError}`}>
+        <span className="font-mono text-faint" data-testid="palette-server-error">
+          local only
+        </span>
+      </WithTooltip>
+    );
+  }
+  if (serverInflight && query) {
+    return (
+      <motion.span
+        className="font-mono text-faint"
+        animate={{ opacity: [0.45, 0.85, 0.45] }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+        data-testid="palette-server-inflight"
+      >
+        searching…
+      </motion.span>
+    );
+  }
+  return (
+    <span className="font-mono">
+      {resultCount} {resultCount === 1 ? 'result' : 'results'}
+    </span>
+  );
+}
+
 function ResultRow({
   id,
   result,
   highlighted,
+  outsideFilter,
   onMouseEnter,
   onClick,
 }: {
   id: string;
-  result: Result;
+  result: PaletteResult;
   highlighted: boolean;
+  outsideFilter: boolean;
   onMouseEnter: () => void;
   onClick: () => void;
 }) {
@@ -225,6 +343,7 @@ function ResultRow({
         aria-selected={highlighted}
         onClick={onClick}
         onMouseEnter={onMouseEnter}
+        data-testid={`palette-result-contact-${c.id}`}
         className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-fast ${
           highlighted ? 'bg-accent-soft/40' : ''
         }`}
@@ -241,6 +360,7 @@ function ResultRow({
         {c.warmth != null ? (
           <span className="font-mono text-[10px] text-faint">w{c.warmth}</span>
         ) : null}
+        {outsideFilter ? <OutsideFilterChip /> : null}
         {highlighted ? (
           <CornerDownLeft size={11} className="shrink-0 text-accent" aria-hidden />
         ) : null}
@@ -255,6 +375,7 @@ function ResultRow({
       aria-selected={highlighted}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
+      data-testid={`palette-result-asset-${a.id}`}
       className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-fast ${
         highlighted ? 'bg-accent-soft/40' : ''
       }`}
@@ -270,6 +391,7 @@ function ResultRow({
       {a.availability ? (
         <span className="shrink-0 text-xs text-muted">{a.availability}</span>
       ) : null}
+      {outsideFilter ? <OutsideFilterChip /> : null}
       {highlighted ? (
         <CornerDownLeft size={11} className="shrink-0 text-accent" aria-hidden />
       ) : null}
@@ -277,14 +399,56 @@ function ResultRow({
   );
 }
 
-function EmptyResults({ query, hasAny }: { query: string; hasAny: boolean }) {
-  if (!hasAny) {
+/** Subtle chip on results that don't match the active panel filter.
+ *  Click still navigates — the row will appear in the panel via the
+ *  upsert path even if it wouldn't have survived a fresh page-1 fetch.
+ *  Tooltip explains the situation so the user doesn't think clicking
+ *  is broken. */
+function OutsideFilterChip() {
+  return (
+    <WithTooltip label="Outside your current filter. Click to surface it anyway.">
+      <span
+        className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-surface-soft px-1.5 py-0.5 text-[10px] text-muted"
+        data-testid="palette-outside-filter"
+      >
+        <Filter size={9} aria-hidden />
+        filter
+      </span>
+    </WithTooltip>
+  );
+}
+
+function EmptyResults({
+  query,
+  hasAny,
+  serverInflight,
+}: {
+  query: string;
+  hasAny: boolean;
+  serverInflight: boolean;
+}) {
+  if (!hasAny && !query) {
     return (
       <div className="px-4 py-12 text-center">
         <p className="text-sm text-fg">Nothing to recall yet.</p>
         <p className="mt-1 text-xs text-muted">
           Add a contact or asset in the chat. It will show up here.
         </p>
+      </div>
+    );
+  }
+  // Server is still in flight — don't show "no matches" prematurely;
+  // the user typed a fraction of a second ago, the RPC hasn't returned.
+  if (serverInflight && query) {
+    return (
+      <div className="px-4 py-12 text-center">
+        <motion.p
+          className="text-sm text-muted"
+          animate={{ opacity: [0.5, 0.9, 0.5] }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          Searching everywhere…
+        </motion.p>
       </div>
     );
   }
@@ -300,56 +464,6 @@ function EmptyResults({ query, hasAny }: { query: string; hasAny: boolean }) {
   );
 }
 
-function resultKey(r: Result): string {
+function resultKey(r: PaletteResult): string {
   return r.kind === 'contact' ? `c-${r.contact.id}` : `a-${r.asset.id}`;
-}
-
-function rankResults(query: string, contacts: Contact[], assets: Asset[], limit: number): Result[] {
-  const q = query.trim().toLowerCase();
-  if (!q) {
-    const recent: Result[] = [];
-    for (const c of contacts.slice(0, Math.ceil(limit * 0.7))) {
-      recent.push({ kind: 'contact', contact: c, score: 1 });
-    }
-    for (const a of assets.slice(0, limit - recent.length)) {
-      recent.push({ kind: 'asset', asset: a, score: 1 });
-    }
-    return recent.slice(0, limit);
-  }
-  const tokens = q.split(/\s+/).filter(Boolean);
-  const scored: Result[] = [];
-  for (const c of contacts) {
-    const score = scoreContact(c, q, tokens);
-    if (score > 0) scored.push({ kind: 'contact', contact: c, score });
-  }
-  for (const a of assets) {
-    const score = scoreAsset(a, q, tokens);
-    if (score > 0) scored.push({ kind: 'asset', asset: a, score });
-  }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit);
-}
-
-function scoreContact(c: Contact, q: string, tokens: string[]): number {
-  const haystack = `${c.name}\n${c.city ?? ''}\n${c.tags.join(' ')}\n${c.notes}`.toLowerCase();
-  let score = 0;
-  if (c.name.toLowerCase().startsWith(q)) score += 100;
-  else if (c.name.toLowerCase().includes(q)) score += 60;
-  for (const t of tokens) {
-    if (haystack.includes(t)) score += 10;
-  }
-  if (score > 0 && c.warmth != null) score += 6 - c.warmth;
-  return score;
-}
-
-function scoreAsset(a: Asset, q: string, tokens: string[]): number {
-  const haystack =
-    `${a.name}\n${a.description ?? ''}\n${a.tags.join(' ')}\n${a.availability ?? ''}`.toLowerCase();
-  let score = 0;
-  if (a.name.toLowerCase().startsWith(q)) score += 90;
-  else if (a.name.toLowerCase().includes(q)) score += 55;
-  for (const t of tokens) {
-    if (haystack.includes(t)) score += 9;
-  }
-  return score;
 }

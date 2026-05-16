@@ -201,6 +201,25 @@ export type Database = {
         Args: { p_user_id: string };
         Returns: number;
       };
+      find_anything: {
+        Args: {
+          any_tags?: string[];
+          city_filter?: string;
+          contains_filter?: string;
+          has_assets?: boolean;
+          in_assets?: boolean;
+          in_contacts?: boolean;
+          match_count?: number;
+          max_warmth?: number;
+          min_warmth?: number;
+          query_embedding?: unknown;
+          query_terms?: string[];
+          recent_days?: number;
+          regex_pattern?: string;
+          required_tags?: string[];
+        };
+        Returns: Json;
+      };
       hybrid_search_assets: {
         Args: {
           full_text_weight?: number;
@@ -268,33 +287,107 @@ export type Database = {
           isSetofReturn: true;
         };
       };
-      mutate_sql: { Args: { query: string }; Returns: Json };
-      query_sql: { Args: { query: string }; Returns: Json };
-      find_anything: {
-        Args: {
-          query_terms?: string[] | null;
-          query_embedding?: unknown;
-          regex_pattern?: string | null;
-          in_contacts?: boolean;
-          in_assets?: boolean;
-          required_tags?: string[] | null;
-          any_tags?: string[] | null;
-          min_warmth?: number | null;
-          max_warmth?: number | null;
-          city_filter?: string | null;
-          contains_filter?: string | null;
-          has_assets?: boolean | null;
-          recent_days?: number | null;
-          match_count?: number;
-        };
-        Returns: Json;
+      lookup_assets_by_ids: {
+        Args: { p_ids: string[] };
+        Returns: {
+          availability: string;
+          contact_id: string;
+          created_at: string;
+          description: string;
+          id: string;
+          name: string;
+          tags: string[];
+          updated_at: string;
+        }[];
       };
+      lookup_contacts_by_ids: {
+        Args: { p_ids: string[] };
+        Returns: {
+          asset_count: number;
+          city: string;
+          created_at: string;
+          id: string;
+          name: string;
+          notes: string;
+          tags: string[];
+          updated_at: string;
+          warmth: number;
+        }[];
+      };
+      mutate_sql: { Args: { query: string }; Returns: Json };
+      network_counts: {
+        Args: never;
+        Returns: {
+          assets: number;
+          contacts: number;
+        }[];
+      };
+      network_facets: { Args: never; Returns: Json };
+      or_tsquery: { Args: { query_text: string }; Returns: unknown };
+      query_assets_page: {
+        Args: {
+          p_availability_contains?: string;
+          p_has_owner?: boolean;
+          p_limit?: number;
+          p_offset?: number;
+          p_owner_ids?: string[];
+          p_search?: string;
+          p_sort?: string;
+          p_tags_all?: string[];
+          p_tags_any?: string[];
+          p_updated_within_days?: number;
+        };
+        Returns: {
+          availability: string;
+          contact_id: string;
+          created_at: string;
+          description: string;
+          id: string;
+          name: string;
+          tags: string[];
+          total_count: number;
+          updated_at: string;
+        }[];
+      };
+      query_contacts_page: {
+        Args: {
+          p_cities?: string[];
+          p_has_assets?: boolean;
+          p_limit?: number;
+          p_offset?: number;
+          p_search?: string;
+          p_sort?: string;
+          p_tags_all?: string[];
+          p_tags_any?: string[];
+          p_updated_within_days?: number;
+          p_warmth?: number[];
+        };
+        Returns: {
+          asset_count: number;
+          city: string;
+          created_at: string;
+          id: string;
+          name: string;
+          notes: string;
+          tags: string[];
+          total_count: number;
+          updated_at: string;
+          warmth: number;
+        }[];
+      };
+      query_sql: { Args: { query: string }; Returns: Json };
       read_embedding_jobs: {
         Args: { p_qty?: number; p_vt?: number };
         Returns: {
           message: Json;
           msg_id: number;
         }[];
+      };
+      show_limit: { Args: never; Returns: number };
+      show_trgm: { Args: { '': string }; Returns: string[] };
+      validate_panel_pins: {
+        Args: { p_asset_ids?: string[]; p_contact_ids?: string[] };
+        Returns: Json;
       };
     };
     Enums: {

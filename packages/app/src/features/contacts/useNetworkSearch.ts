@@ -94,20 +94,14 @@ export function useNetworkSearch(
     setInflight(true);
     const handle = setTimeout(async () => {
       try {
+        // Pass undefined (not null) for unused params so the generated
+        // RPC types are satisfied — PostgREST treats omitted keys the
+        // same as null at the SQL boundary.
         const { data, error } = await getBrowserSupabase().rpc('find_anything', {
           query_terms: [q],
-          query_embedding: null,
-          regex_pattern: null,
           in_contacts: true,
           in_assets: true,
-          required_tags: null,
-          any_tags: null,
-          min_warmth: null,
-          max_warmth: null,
-          city_filter: null,
           contains_filter: q,
-          has_assets: null,
-          recent_days: null,
           match_count: 100,
         });
         if (seq !== seqRef.current) return; // stale response

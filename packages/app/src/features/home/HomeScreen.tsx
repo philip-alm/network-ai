@@ -78,7 +78,7 @@ export function HomeScreen({
     userId,
     threadId,
   });
-  const { contacts, assets } = useContacts({ userId });
+  const network = useContacts({ userId });
   const [mobilePane, setMobilePane] = useState<MobilePane>('chat');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [cheatsheetOpen, setCheatsheetOpen] = useState(false);
@@ -241,7 +241,7 @@ export function HomeScreen({
             Icon={Users}
             selected={mobilePane === 'contacts'}
             onClick={() => setMobilePane('contacts')}
-            badge={contacts.length > 0 ? contacts.length : undefined}
+            badge={network.totals.contacts > 0 ? network.totals.contacts : undefined}
             testId="mobile-pane-contacts"
           />
         </nav>
@@ -357,7 +357,21 @@ export function HomeScreen({
           mobileLabelledBy="mobile-pane-contacts"
           visibleOnMobile={mobilePane === 'contacts'}
         >
-          <ContactsAccordion contacts={contacts} assets={assets} />
+          <ContactsAccordion
+            contacts={network.contacts}
+            assets={network.assets}
+            totals={network.totals}
+            filteredTotals={network.filteredTotals}
+            facets={network.facets}
+            hasMore={network.hasMore}
+            isLoadingMore={network.isLoadingMore}
+            isLoading={network.isLoading}
+            isRefetching={network.isRefetching}
+            isSearchPending={network.isSearchPending}
+            loadMore={network.loadMore}
+            error={network.error}
+            retry={network.retry}
+          />
         </Pane>
       </main>
 

@@ -42,10 +42,10 @@ const STARTER_PROMPTS: StarterPrompt[] = [
 
 const PHASE_COPY: Record<AgentPhase, string> = {
   idle: '',
-  thinking: 'thinking',
-  running_tools: 'running tools',
-  composing: 'composing',
-  retrying: 'retrying',
+  thinking: 'Thinking',
+  running_tools: 'Working on it',
+  composing: 'Writing',
+  retrying: 'Retrying',
   done: '',
 };
 
@@ -91,11 +91,11 @@ export function ChatThread({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -2 }}
                     transition={{ duration: 0.16, ease: [0.25, 1, 0.5, 1] }}
-                    className="flex items-center gap-2 text-xs text-faint"
+                    className="flex items-center gap-2 pl-[2px] text-xs text-faint"
                     data-testid="chat-phase"
                   >
                     <PendingDots />
-                    <span className="font-mono tracking-tight">{PHASE_COPY[phase!]}</span>
+                    <span className="tracking-tight">{PHASE_COPY[phase!]}…</span>
                   </motion.div>
                 ) : null}
               </AnimatePresence>

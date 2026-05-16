@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildPanelItems, panelItemKey, PANEL_ITEM_ESTIMATES } from './VirtualPanelList';
+import {
+  buildPanelItems,
+  findRowIndex,
+  panelItemKey,
+  PANEL_ITEM_ESTIMATES,
+  type PanelItem,
+} from './VirtualPanelList';
 import type { Contact, Asset } from '../../lib/store';
 
 function makeContact(over: Partial<Contact> = {}): Contact {
@@ -31,22 +37,21 @@ function makeAsset(over: Partial<Asset> = {}): Asset {
 }
 
 describe('buildPanelItems', () => {
-  it('produces empty array when both lists are empty', () => {
+  it('produces empty array when the active list is empty', () => {
     const items = buildPanelItems({
-      view: 'both',
+      view: 'contacts',
       visibleContacts: [],
       visibleAssets: [],
       pinnedContactIds: new Set(),
       pinnedAssetIds: new Set(),
       showContacts: true,
-      showAssets: true,
+      showAssets: false,
       showFirstEntryCaption: false,
-      assetsTotal: 0,
     });
     expect(items).toEqual([]);
   });
 
-  it('contacts-only view skips the asset section header', () => {
+  it('contacts view returns only contact items', () => {
     const c1 = makeContact({ id: 'a' });
     const c2 = makeContact({ id: 'b' });
     const items = buildPanelItems({
@@ -58,32 +63,24 @@ describe('buildPanelItems', () => {
       showContacts: true,
       showAssets: false,
       showFirstEntryCaption: false,
-      assetsTotal: 0,
     });
     expect(items.map((i) => i.type)).toEqual(['contact', 'contact']);
   });
 
-  it('view=both inserts an asset-section-header BEFORE the first asset', () => {
-    const c = makeContact({ id: 'c1' });
-    const a = makeAsset({ id: 'a1' });
+  it('assets view returns only asset items', () => {
+    const a1 = makeAsset({ id: 'a' });
+    const a2 = makeAsset({ id: 'b' });
     const items = buildPanelItems({
-      view: 'both',
-      visibleContacts: [c],
-      visibleAssets: [a],
+      view: 'assets',
+      visibleContacts: [],
+      visibleAssets: [a1, a2],
       pinnedContactIds: new Set(),
       pinnedAssetIds: new Set(),
-      showContacts: true,
+      showContacts: false,
       showAssets: true,
       showFirstEntryCaption: false,
-      assetsTotal: 5,
     });
-    expect(items.map((i) => i.type)).toEqual(['contact', 'asset-section-header', 'asset']);
-    const header = items.find((i) => i.type === 'asset-section-header');
-    expect(header).toBeDefined();
-    if (header && header.type === 'asset-section-header') {
-      expect(header.total).toBe(5);
-      expect(header.visible).toBe(1);
-    }
+    expect(items.map((i) => i.type)).toEqual(['asset', 'asset']);
   });
 
   it('pinned contacts come first with label and divider', () => {
@@ -99,7 +96,6 @@ describe('buildPanelItems', () => {
       showContacts: true,
       showAssets: false,
       showFirstEntryCaption: false,
-      assetsTotal: 0,
     });
     expect(items.map((i) => i.type)).toEqual([
       'pinned-label',
@@ -115,42 +111,24 @@ describe('buildPanelItems', () => {
     }
   });
 
-  it('cascadeIndex is sequential across pinned + rest, contacts + assets', () => {
+  it('cascadeIndex is sequential across pinned + rest within the active view', () => {
     const c1 = makeContact({ id: '1' });
     const c2 = makeContact({ id: '2' });
-    const a1 = makeAsset({ id: '3' });
-    const a2 = makeAsset({ id: '4' });
+    const c3 = makeContact({ id: '3' });
     const items = buildPanelItems({
-      view: 'both',
-      visibleContacts: [c1, c2],
-      visibleAssets: [a1, a2],
+      view: 'contacts',
+      visibleContacts: [c1, c2, c3],
+      visibleAssets: [],
       pinnedContactIds: new Set(['1']),
       pinnedAssetIds: new Set(),
       showContacts: true,
-      showAssets: true,
+      showAssets: false,
       showFirstEntryCaption: false,
-      assetsTotal: 2,
     });
     const cascadeIndices = items
-      .filter((i) => i.type === 'contact' || i.type === 'asset')
-      .map((i) => (i.type === 'contact' || i.type === 'asset' ? i.cascadeIndex : -1));
-    expect(cascadeIndices).toEqual([0, 1, 2, 3]);
-  });
-
-  it('hides asset section when assets list is empty even in view=both', () => {
-    const c = makeContact();
-    const items = buildPanelItems({
-      view: 'both',
-      visibleContacts: [c],
-      visibleAssets: [],
-      pinnedContactIds: new Set(),
-      pinnedAssetIds: new Set(),
-      showContacts: true,
-      showAssets: true,
-      showFirstEntryCaption: false,
-      assetsTotal: 0,
-    });
-    expect(items.map((i) => i.type)).toEqual(['contact']);
+      .filter((i) => i.type === 'contact')
+      .map((i) => (i.type === 'contact' ? i.cascadeIndex : -1));
+    expect(cascadeIndices).toEqual([0, 1, 2]);
   });
 
   it('first-entry-caption appears after contacts when toggled on', () => {
@@ -164,7 +142,6 @@ describe('buildPanelItems', () => {
       showContacts: true,
       showAssets: false,
       showFirstEntryCaption: true,
-      assetsTotal: 0,
     });
     expect(items.map((i) => i.type)).toEqual(['contact', 'first-entry-caption']);
   });
@@ -187,8 +164,61 @@ describe('panelItemKey', () => {
       'pl-contacts',
     );
     expect(panelItemKey({ type: 'pinned-divider', section: 'assets' })).toBe('pd-assets');
-    expect(panelItemKey({ type: 'asset-section-header', total: 0, visible: 0 })).toBe('ash');
     expect(panelItemKey({ type: 'first-entry-caption' })).toBe('fec');
+  });
+});
+
+describe('findRowIndex', () => {
+  const c1 = makeContact({ id: 'c1' });
+  const c2 = makeContact({ id: 'c2' });
+  const a1 = makeAsset({ id: 'a1' });
+
+  it('returns -1 when the items list is empty', () => {
+    expect(findRowIndex([], 'contact', 'whatever')).toBe(-1);
+  });
+
+  it('returns -1 when the id is not present in items', () => {
+    const items: PanelItem[] = [{ type: 'contact', data: c1, pinned: false, cascadeIndex: 0 }];
+    expect(findRowIndex(items, 'contact', 'no-match')).toBe(-1);
+  });
+
+  it('finds a contact among contact items', () => {
+    const items: PanelItem[] = [
+      { type: 'contact', data: c1, pinned: false, cascadeIndex: 0 },
+      { type: 'contact', data: c2, pinned: false, cascadeIndex: 1 },
+    ];
+    expect(findRowIndex(items, 'contact', 'c2')).toBe(1);
+  });
+
+  it('does NOT cross-match a contact id against an asset item with the same id', () => {
+    const sameId = 'collision';
+    const cSame = makeContact({ id: sameId });
+    const aSame = makeAsset({ id: sameId });
+    const items: PanelItem[] = [
+      { type: 'asset', data: aSame, pinned: false, cascadeIndex: 0 },
+      { type: 'contact', data: cSame, pinned: false, cascadeIndex: 1 },
+    ];
+    // Asks for a contact → must find the contact item, not the asset.
+    expect(findRowIndex(items, 'contact', sameId)).toBe(1);
+    expect(findRowIndex(items, 'asset', sameId)).toBe(0);
+  });
+
+  it('counts through non-row items (pinned labels, dividers) to the right absolute index', () => {
+    const items: PanelItem[] = [
+      { type: 'pinned-label', section: 'contacts', count: 1 },
+      { type: 'contact', data: c1, pinned: true, cascadeIndex: 0 },
+      { type: 'pinned-divider', section: 'contacts' },
+      { type: 'contact', data: c2, pinned: false, cascadeIndex: 1 },
+    ];
+    // c2 is at absolute index 3 (pinned-label, c1, divider, c2). The
+    // virtualizer needs the absolute index, not "contact-N", because
+    // scrollToIndex is positional across all items.
+    expect(findRowIndex(items, 'contact', 'c2')).toBe(3);
+  });
+
+  it('finds an asset among asset items', () => {
+    const items: PanelItem[] = [{ type: 'asset', data: a1, pinned: false, cascadeIndex: 0 }];
+    expect(findRowIndex(items, 'asset', 'a1')).toBe(0);
   });
 });
 
@@ -199,7 +229,6 @@ describe('PANEL_ITEM_ESTIMATES', () => {
       'asset',
       'pinned-label',
       'pinned-divider',
-      'asset-section-header',
       'first-entry-caption',
     ] as const) {
       expect(PANEL_ITEM_ESTIMATES[type]).toBeGreaterThan(0);

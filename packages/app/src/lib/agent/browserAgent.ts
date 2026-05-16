@@ -21,6 +21,8 @@ import {
 } from './runAgent';
 import { MODEL_ID } from './systemPrompt';
 import { browserEmbedQuery } from './browserEmbedQuery';
+import { createHttpDebugRecorder } from './httpDebugRecorder';
+import { noopDebugRecorder } from './debugRecorder';
 
 export type BrowserAgentInput = {
   threadId: string;
@@ -46,6 +48,13 @@ export async function runBrowserAgentTurn(input: BrowserAgentInput): Promise<Age
     headers: { Authorization: `Bearer ${session.access_token}` },
   });
 
+  // Dev-only: capture byte-exact browser turns to disk via the
+  // /api/debug/recorder endpoint so failures can be diagnosed without
+  // DevTools or screenshots. Falls back to no-op in prod or when the
+  // recorder is unreachable (the recorder itself is best-effort).
+  const recorder =
+    process.env.NODE_ENV === 'development' ? createHttpDebugRecorder() : noopDebugRecorder;
+
   return runAgentTurn({
     model: provider(MODEL_ID),
     supabase,
@@ -58,6 +67,7 @@ export async function runBrowserAgentTurn(input: BrowserAgentInput): Promise<Age
     callbacks: input.callbacks,
     getPendingQueue: input.getPendingQueue,
     clearPendingQueue: input.clearPendingQueue,
+    recorder,
     // Bind the set_panel tool to the live zustand store so the agent
     // can drive the right pane in the same way the user UI does.
     // `source: 'agent'` flags this as an AI-driven change so the store

@@ -8,7 +8,6 @@ import {
   Users,
   Briefcase,
   ArrowUpRight,
-  Layers,
   Search,
   X,
   Sparkles,
@@ -20,12 +19,7 @@ import { useFirstContactDelight } from './useFirstContactDelight';
 import { ContactFilter, type ContactFilterState } from './ContactFilter';
 import { ContactSort, type ContactSortMode } from './ContactSort';
 import {
-  applyContactFilter,
-  applyAssetFilter,
-  applyContactSort,
-  applyAssetSort,
   applyPinning,
-  buildAssetCountMap,
   buildAssetsByOwnerMap,
   getOwnAssets,
   isContactFilterEmpty,
@@ -35,8 +29,12 @@ import { iconForAsset } from './assetIcons';
 import { SkeletonRows } from './SkeletonRows';
 import { CountUp } from './CountUp';
 import { ProgressRing } from './ProgressRing';
+import { LoadingMoreTail } from './LoadingMoreTail';
 import { useCascadeIn } from './useCascadeIn';
+import { useOwnerName } from './useOwnerName';
 import { VirtualPanelList, buildPanelItems, type PanelItem } from './VirtualPanelList';
+import type { NetworkTotals, NetworkFacets } from './useContacts';
+import { useNavigateToRow } from './useNavigateToRow';
 import { useNetworkStore, type Contact, type Asset, type PanelState } from '../../lib/store';
 import { getBrowserSupabase } from '../../lib/supabase';
 import { SoftDivider, WithTooltip, Kbd } from '../ui';
@@ -44,27 +42,71 @@ import { SoftDivider, WithTooltip, Kbd } from '../ui';
 export type ContactsAccordionProps = {
   contacts: Contact[];
   assets: Asset[];
+  totals: NetworkTotals;
+  filteredTotals: NetworkTotals;
+  facets: NetworkFacets;
+  hasMore: { contacts: boolean; assets: boolean };
+  isLoadingMore: { contacts: boolean; assets: boolean };
+  isLoading: boolean;
+  /** A page-1 refetch is in flight (per kind). UI dims existing rows
+   *  so the user sees something is happening but doesn't watch them
+   *  disappear and reappear. */
+  isRefetching: { contacts: boolean; assets: boolean };
+  /** User is typing but the search debounce hasn't fired yet. Drives
+   *  the search-input spinner. */
+  isSearchPending: boolean;
+  loadMore: (kind: 'contacts' | 'assets') => Promise<void>;
+  /** Last RPC error, if any. Drives the retry banner. */
+  error: string | null;
+  /** Imperative retry — clears error and refetches everything. */
+  retry: () => Promise<void>;
   onChange?: () => void;
 };
 
 const UNDO_WINDOW_MS = 5000;
+/** Prefetch the next page when the user has fewer than this many
+ *  VIEWPORT HEIGHTS of content remaining below the fold. Viewport-
+ *  relative beats fixed-row-count because expanded rows are 200-600px
+ *  while closed rows are 44px — a fixed row-count threshold fires too
+ *  late when many rows are open. 1.5 viewports = comfortable lead
+ *  time for inertial scrolling without thrashing. */
+const PREFETCH_VIEWPORT_RATIO = 1.5;
 
 type PendingDelete = {
   contact: Contact;
   expiresAt: number;
 };
 
-export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) {
+export function ContactsAccordion({
+  contacts,
+  assets,
+  totals,
+  filteredTotals,
+  facets,
+  hasMore,
+  isLoadingMore,
+  isLoading,
+  isRefetching,
+  isSearchPending,
+  loadMore,
+  error,
+  retry,
+}: ContactsAccordionProps) {
   const contactById = useMemo(() => new Map(contacts.map((c) => [c.id, c])), [contacts]);
-  const {
-    upsertContacts,
-    removeContact,
-    jumpTo,
-    setPanelState,
-    clearPanelFilters,
-    restorePanelState,
-  } = useNetworkStore((s) => s.actions);
+  const { upsertContacts, removeContact, setPanelState, clearPanelFilters, restorePanelState } =
+    useNetworkStore((s) => s.actions);
+  // Jump-to-owner from an asset row is the same primitive the palette
+  // and @mentions use — fetches the contact on miss, switches view if
+  // needed, drives both the virtualizer scroll AND the row's open pulse.
+  const navigate = useNavigateToRow();
   const panel = useNetworkStore((s) => s.panel);
+  // scrollIntent is consumed by VirtualPanelList (off-screen scroll) AND
+  // by mounted ContactRow / AssetRow (the open + pulse on the right
+  // row). We subscribe once here and pass it down so the virtualizer's
+  // re-scroll triggers come through the React render cycle alongside
+  // any items-list rebuild from upsert (so findRowIndex hits the new
+  // row, not a stale list).
+  const scrollIntent = useNetworkStore((s) => s.scrollIntent);
   const undoSnapshot = useNetworkStore((s) => s.panelUndoSnapshot);
   const loading = useNetworkStore((s) => s.loading);
   const [pending, setPending] = useState<PendingDelete | null>(null);
@@ -101,38 +143,39 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
     [setPanelState],
   );
 
-  // ── Derived data — memoized so the pipeline only re-runs when its
-  //    inputs actually change, not on every render of an unrelated
-  //    state slice (the chat side bumping pending, for example).
+  // ── Server is the source of truth for filter + sort + search.
+  //    The `contacts` and `assets` props are already filtered, sorted,
+  //    and paged by the RPCs in useContacts. We only do client-side:
+  //
+  //    1. Pinning — small N, user-state, cheap to hoist to top.
+  //    2. assetsByOwner Map — for ContactRow's expanded panel. Note:
+  //       at scale this only contains LOADED assets; expanded rows
+  //       may need to lazy-fetch the contact's full asset set.
 
-  /** Per-(contacts, assets) — used by row badges + asset_count sort. */
-  const assetCountMap = useMemo(() => buildAssetCountMap(assets), [assets]);
-  /** contact_id → assets[]. Passed per-row to ContactRow so each row
-   *  receives only its own assets — keeps React.memo effective when
-   *  unrelated assets change. */
+  /** contact_id → assets[]. Built from the currently loaded asset
+   *  slice. Incomplete at scale, but enough for the open-row preview;
+   *  full owned-asset list is fetched on demand by ContactRow. */
   const assetsByOwner = useMemo(() => buildAssetsByOwnerMap(assets), [assets]);
 
-  const visibleContacts = useMemo(() => {
-    const filtered = applyContactFilter(contacts, filter, { assets, search });
-    const sorted = applyContactSort(filtered, sort, { assetCountMap });
-    const { list } = applyPinning(sorted, panel.pinnedContactIds);
-    return list;
-  }, [contacts, assets, filter, sort, search, panel.pinnedContactIds, assetCountMap]);
-
   const pinnedContactSet = useMemo(() => new Set(panel.pinnedContactIds), [panel.pinnedContactIds]);
-
-  const visibleAssets = useMemo(() => {
-    const filtered = applyAssetFilter(assets, panel.assetFilter, { search });
-    const sorted = applyAssetSort(filtered, panel.assetSort);
-    const { list } = applyPinning(sorted, panel.pinnedAssetIds);
-    return list;
-  }, [assets, panel.assetFilter, panel.assetSort, search, panel.pinnedAssetIds]);
-
   const pinnedAssetSet = useMemo(() => new Set(panel.pinnedAssetIds), [panel.pinnedAssetIds]);
 
-  const showContacts = view === 'both' || view === 'contacts';
-  const showAssets = view === 'both' || view === 'assets';
-  const { active: firstEntryActive } = useFirstContactDelight(contacts.length);
+  // Visible lists = server result + client-side pin hoisting only.
+  const visibleContacts = useMemo(() => {
+    if (panel.pinnedContactIds.length === 0) return contacts;
+    return applyPinning(contacts, panel.pinnedContactIds).list;
+  }, [contacts, panel.pinnedContactIds]);
+
+  const visibleAssets = useMemo(() => {
+    if (panel.pinnedAssetIds.length === 0) return assets;
+    return applyPinning(assets, panel.pinnedAssetIds).list;
+  }, [assets, panel.pinnedAssetIds]);
+
+  // Exactly one of these is true at any time. Two clean toggles, two
+  // independent paginated lists — no stacking, no ambiguous "bottom."
+  const showContacts = view === 'contacts';
+  const showAssets = view === 'assets';
+  const { active: firstEntryActive } = useFirstContactDelight(totals.contacts);
 
   const isPanelDirty =
     !isContactFilterEmpty(panel.contactFilter) ||
@@ -183,9 +226,9 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
   );
 
   // ── Build the typed panel item list for the virtualizer.
-  // One source of truth — pinned labels, dividers, the assets
-  // section header, first-entry caption are all items in the same
-  // array. The virtualizer handles ordering and visibility.
+  // One source of truth — pinned labels, dividers, first-entry
+  // caption are all items in the same array. The view determines
+  // whether it's all contacts or all assets — never both.
   const panelItems = useMemo<PanelItem[]>(
     () =>
       buildPanelItems({
@@ -197,7 +240,6 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
         showContacts,
         showAssets,
         showFirstEntryCaption: firstEntryActive,
-        assetsTotal: assets.length,
       }),
     [
       view,
@@ -208,9 +250,41 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
       showContacts,
       showAssets,
       firstEntryActive,
-      assets.length,
     ],
   );
+
+  // ── Scroll-to-load-more trigger.
+  //
+  // Uses the scroller's measured DOM dimensions (NOT estimated row
+  // counts), so it works correctly whether the visible window is full
+  // of 44px closed rows or 600px expanded ones. Fires when there's
+  // less than PREFETCH_VIEWPORT_RATIO × viewport heights of content
+  // remaining below the fold.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const onScroll = (): void => {
+      if (!hasMore.contacts && !hasMore.assets) return;
+      const viewportHeight = el.clientHeight;
+      // scrollHeight is the FULL measured content height (the
+      // virtualizer's absolute container provides this via its
+      // height = totalSize style). So this delta is real px, not
+      // an estimate from row count.
+      const distanceFromBottom = el.scrollHeight - (el.scrollTop + viewportHeight);
+      if (distanceFromBottom > viewportHeight * PREFETCH_VIEWPORT_RATIO) return;
+      // Load whichever kind still has more, contacts first.
+      if (hasMore.contacts && !isLoadingMore.contacts) {
+        void loadMore('contacts');
+      } else if (hasMore.assets && !isLoadingMore.assets) {
+        void loadMore('assets');
+      }
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    // Initial check on mount — short lists may already be at the
+    // bottom on first paint.
+    onScroll();
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [hasMore.contacts, hasMore.assets, isLoadingMore.contacts, isLoadingMore.assets, loadMore]);
 
   // Dispatch rendering by item type. The cascade animation wraps the
   // row content on an INNER div; the virtualizer owns the OUTER
@@ -231,6 +305,12 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
           );
         case 'asset': {
           const Icon = iconForAsset(item.data.name, item.data.availability);
+          // Pass owner-as-loaded for fast-path render; AssetRow falls
+          // back to a lookup_contacts_by_ids call via useOwnerName if
+          // the owner isn't in the loaded slice. onJumpToOwner is
+          // always provided when the asset has a contact_id — jumpTo
+          // itself fetches-on-miss via useJumpTo, so the click works
+          // regardless of pagination state.
           const owner = item.data.contact_id ? contactById.get(item.data.contact_id) : null;
           const open = expandedAssetIds.has(item.data.id);
           return (
@@ -241,7 +321,11 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
                 owner={owner ?? null}
                 open={open}
                 onToggle={() => toggleAssetExpanded(item.data.id)}
-                onJumpToOwner={owner ? () => jumpTo(owner.id) : undefined}
+                onJumpToOwner={
+                  item.data.contact_id
+                    ? () => void navigate('contact', item.data.contact_id as string)
+                    : undefined
+                }
               />
             </CascadeRow>
           );
@@ -254,17 +338,6 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
               <SoftDivider />
             </div>
           );
-        case 'asset-section-header':
-          return (
-            <div className="mt-4">
-              <PanelHeader
-                Icon={Briefcase}
-                title="Assets"
-                count={item.visible}
-                total={item.total}
-              />
-            </div>
-          );
         case 'first-entry-caption':
           return <FirstEntryCaption />;
       }
@@ -274,7 +347,7 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
       contactById,
       expandedAssetIds,
       handleDeleteCallback,
-      jumpTo,
+      navigate,
       toggleAssetExpanded,
     ],
   );
@@ -328,20 +401,16 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
       className="flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden"
     >
       <PanelHeader
-        Icon={view === 'assets' ? Briefcase : view === 'contacts' ? Users : Layers}
-        title={view === 'assets' ? 'Assets' : view === 'contacts' ? 'Contacts' : 'Network'}
-        count={
-          (showContacts ? visibleContacts.length : 0) + (showAssets ? visibleAssets.length : 0)
-        }
-        total={
-          view === 'both'
-            ? contacts.length + assets.length
-            : view === 'contacts'
-              ? contacts.length
-              : assets.length
-        }
+        Icon={view === 'assets' ? Briefcase : Users}
+        title={view === 'assets' ? 'Assets' : 'Network'}
+        // count = matching the current filter (the denominator of
+        // "200 of 15,461"); total = everything alive in the user's
+        // network. Both are SERVER-REPORTED so they remain honest at
+        // any scale — never the .length of what happens to be loaded.
+        count={showContacts ? filteredTotals.contacts : filteredTotals.assets}
+        total={showContacts ? totals.contacts : totals.assets}
         scrolled={scrolled}
-        loadingPhase={loading.phase}
+        loadingPhase={isLoading ? 'syncing' : loading.phase}
         actions={
           // Always render the action cluster — even when contacts and
           // assets are still loading. Previously this was conditional on
@@ -351,12 +420,12 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
           // view; their dropdowns are no-ops when there's nothing to act
           // on but the buttons hold their slots.
           <span className="inline-flex items-center gap-1.5">
-            <HeaderSearch value={search} onChange={setSearch} />
+            <HeaderSearch value={search} onChange={setSearch} pending={isSearchPending} />
             <ViewToggle view={view} onChange={setView} />
             {view !== 'assets' ? (
               <>
                 <ContactSort value={sort} onChange={setSort} />
-                <ContactFilter contacts={contacts} value={filter} onChange={setFilter} />
+                <ContactFilter facets={facets} value={filter} onChange={setFilter} />
               </>
             ) : null}
           </span>
@@ -377,28 +446,98 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
         ) : null}
       </AnimatePresence>
 
-      {/* Cold-load skeleton: only when we truly have nothing to show. */}
-      {showContacts && contacts.length === 0 && loading.phase === 'cold' ? <SkeletonRows /> : null}
-      {showContacts && contacts.length === 0 && loading.phase !== 'cold' ? (
+      {/* States below use SERVER totals as the source of truth, not
+          loaded-row counts. "0 of 0" → empty network; "0 of 15,461" →
+          filter narrowed everything out.
+
+          CRITICAL guards (race conditions): network_counts returns
+          faster than query_contacts_page, so for a moment
+          `totals.contacts > 0` while `filteredTotals.contacts === 0`.
+          Without the guards the user briefly sees "No contacts match"
+          when in fact page 1 is just still loading.
+
+          - SkeletonRows: only on truly fresh load (cold cache + no rows).
+          - EmptyContactsState: only when we're DONE loading AND server
+            says 0 contacts AND no rows have ever appeared.
+          - EmptyFilterState: only when we're DONE loading AND server
+            says 0 matches AND nothing is showing in the list. */}
+      {showContacts &&
+      totals.contacts === 0 &&
+      contacts.length === 0 &&
+      (isLoading || isRefetching.contacts) ? (
+        <SkeletonRows />
+      ) : null}
+      {showContacts &&
+      totals.contacts === 0 &&
+      contacts.length === 0 &&
+      !isLoading &&
+      !isRefetching.contacts ? (
         <EmptyContactsState />
       ) : null}
-      {showContacts && contacts.length > 0 && visibleContacts.length === 0 ? (
+      {showContacts &&
+      totals.contacts > 0 &&
+      filteredTotals.contacts === 0 &&
+      contacts.length === 0 &&
+      !isLoading &&
+      !isRefetching.contacts ? (
         <EmptyFilterState onClear={() => clearPanelFilters()} />
       ) : null}
+      {/* Error banner — silent failures are unacceptable. When an RPC
+          fails, the user gets a clear "Couldn't load — Retry" with one
+          click to recover. */}
+      {error ? (
+        <div
+          role="alert"
+          data-testid="network-error-banner"
+          className="mx-3 mt-2 flex items-center gap-2 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-fg"
+        >
+          <span aria-hidden className="inline-flex h-1.5 w-1.5 rounded-full bg-danger" />
+          <span className="flex-1">
+            Couldn't load the network. <span className="text-faint">{error.slice(0, 80)}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => void retry()}
+            className="rounded-sm px-2 py-1 text-[11px] font-medium text-fg transition-all duration-[140ms] hover:bg-surface-soft active:scale-[0.96]"
+            style={{ transitionTimingFunction: 'var(--ease-out)' }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       {/* Virtualized panel list — single virtualizer handles BOTH the
           contacts section and the assets section + their pinned
           subsections, section header, and the first-entry caption.
           Builds a typed `PanelItem[]` and dispatches rendering by type.
           Scales to 100k+ rows: only items in the viewport (~30) are
           mounted at any time. See VirtualPanelList.tsx for the
-          virtualization rules + scroll-anchor behavior. */}
+          virtualization rules + scroll-anchor behavior.
+
+          Stale-during-refetch: when a filter/sort/search changes and a
+          new page is loading, we DIM the existing rows (opacity 0.55)
+          instead of blanking them. The crossfade reads as "your action
+          is being applied" — not "everything broke." */}
       {panelItems.length > 0 ? (
         <div className="px-3 pb-3">
-          <VirtualPanelList
-            items={panelItems}
-            scrollerRef={scrollerRef}
-            renderItem={renderPanelItem}
-          />
+          <div
+            style={{
+              opacity: isRefetching.contacts || isRefetching.assets ? 0.55 : 1,
+              transition: 'opacity 180ms var(--ease-out)',
+              pointerEvents: isRefetching.contacts || isRefetching.assets ? 'none' : 'auto',
+            }}
+          >
+            <VirtualPanelList
+              items={panelItems}
+              scrollerRef={scrollerRef}
+              renderItem={renderPanelItem}
+              scrollIntent={scrollIntent}
+            />
+          </div>
+          {/* Scroll-prefetch indicator — visible whenever a loadMore
+              fetch is in flight. Subtle pulsing dot + "Loading more…"
+              so the user knows the next page is on its way. */}
+          <LoadingMoreTail visible={isLoadingMore.contacts || isLoadingMore.assets} />
         </div>
       ) : null}
 
@@ -416,9 +555,13 @@ export function ContactsAccordion({ contacts, assets }: ContactsAccordionProps) 
   );
 }
 
-type ViewMode = 'contacts' | 'both' | 'assets';
+type ViewMode = 'contacts' | 'assets';
 
 function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
+  // Two clean modes — Network (people) ↔ Assets (things). No "both":
+  // stacking two paginated lists in one scroller breaks scroll-to-
+  // load-more and creates an ambiguous bottom. Toggle when you want
+  // to look at the other kind.
   return (
     <span
       className="inline-flex items-center rounded-md bg-bg p-0.5 shadow-hairline-soft"
@@ -427,19 +570,13 @@ function ViewToggle({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode
     >
       <ViewToggleButton
         active={view === 'contacts'}
-        label="Contacts only"
+        label="Network"
         Icon={Users}
         onClick={() => onChange('contacts')}
       />
       <ViewToggleButton
-        active={view === 'both'}
-        label="Both"
-        Icon={Layers}
-        onClick={() => onChange('both')}
-      />
-      <ViewToggleButton
         active={view === 'assets'}
-        label="Assets only"
+        label="Assets"
         Icon={Briefcase}
         onClick={() => onChange('assets')}
       />
@@ -520,7 +657,17 @@ function ViewToggleButton({
  * When AI sets `panel.search`, the value appears here automatically — same
  * affordance whether user or AI authored it.
  */
-function HeaderSearch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function HeaderSearch({
+  value,
+  onChange,
+  pending = false,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  /** A search is debouncing / RTT in flight. Drives the pulse on the
+   *  leading search icon so the user knows their keystroke registered. */
+  pending?: boolean;
+}) {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const active = focused || value.length > 0;
@@ -538,6 +685,12 @@ function HeaderSearch({ value, onChange }: { value: string; onChange: (v: string
         className={`shrink-0 transition-colors duration-[140ms] ${
           active ? 'text-accent' : 'text-faint group-hover:text-muted'
         }`}
+        style={{
+          // When a search round-trip is pending, pulse the icon so the
+          // user can tell their keystroke is being processed (avoids
+          // the "is anything happening?" gap of debounce + RTT).
+          animation: pending ? 'reknowable-pulse 900ms ease-in-out infinite' : undefined,
+        }}
       />
       <input
         ref={inputRef}
@@ -883,8 +1036,36 @@ function AssetRow({
   onToggle: () => void;
   onJumpToOwner?: () => void;
 }) {
+  // useOwnerName falls back to the lookup_contacts_by_ids RPC if the
+  // owner isn't in the loaded contacts slice. Passing the known name
+  // when we have it skips the round trip. Result: the owner pill is
+  // always populated, even at scale where the owning contact may be
+  // on a different page.
+  const resolvedOwnerName = useOwnerName(asset.contact_id ?? null, owner?.name ?? null);
+
+  // scrollIntent → scrollIntoView + open + clear highlight pulse.
+  // Mirrors ContactRow exactly but gated on kind === 'asset' so a
+  // contact id collision can't trigger it. The nonce ref prevents the
+  // effect from re-running when the parent rebuilds onToggle's identity
+  // (a NEW arrow function every accordion render) without changing the
+  // actual scroll intent.
+  const rowRef = useRef<HTMLDivElement>(null);
+  const clearHighlight = useNetworkStore((s) => s.actions.clearHighlight);
+  const scrollIntent = useNetworkStore((s) => s.scrollIntent);
+  const lastHandledNonceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!scrollIntent || scrollIntent.kind !== 'asset' || scrollIntent.id !== asset.id) return;
+    if (lastHandledNonceRef.current === scrollIntent.nonce) return;
+    lastHandledNonceRef.current = scrollIntent.nonce;
+    rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!open) onToggle();
+    const t = setTimeout(() => clearHighlight(), 1200);
+    return () => clearTimeout(t);
+  }, [scrollIntent, asset.id, open, onToggle, clearHighlight]);
+
   return (
     <div
+      ref={rowRef}
       className={`group rounded-md transition-all duration-[140ms] ${
         // No outer margin when open — same fix as ContactRow. The 4px
         // top + 4px bottom margin shifted siblings by 8px on toggle.
@@ -932,23 +1113,28 @@ function AssetRow({
           <span className="truncate text-xs text-muted">· {asset.availability}</span>
         ) : null}
         <span className="ml-auto inline-flex shrink-0 items-center gap-2 text-[11px]">
-          {owner && onJumpToOwner ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onJumpToOwner();
-              }}
-              aria-label={`Open ${owner.name} who owns ${asset.name}`}
-              className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-muted transition-colors duration-[140ms] hover:bg-bg hover:text-accent focus-visible:bg-bg focus-visible:text-accent active:scale-[0.96]"
-              style={{
-                transitionTimingFunction: 'var(--ease-out)',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              <span className="truncate max-w-[14ch]">{owner.name}</span>
-              <ArrowUpRight size={10} aria-hidden />
-            </button>
+          {asset.contact_id ? (
+            resolvedOwnerName ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onJumpToOwner?.();
+                }}
+                aria-label={`Open ${resolvedOwnerName} who owns ${asset.name}`}
+                disabled={!onJumpToOwner}
+                className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-muted transition-colors duration-[140ms] hover:bg-bg hover:text-accent focus-visible:bg-bg focus-visible:text-accent active:scale-[0.96] disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-muted"
+                style={{
+                  transitionTimingFunction: 'var(--ease-out)',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                <span className="truncate max-w-[14ch]">{resolvedOwnerName}</span>
+                {onJumpToOwner ? <ArrowUpRight size={10} aria-hidden /> : null}
+              </button>
+            ) : (
+              <span className="text-faint">Loading…</span>
+            )
           ) : (
             <span className="text-faint">Owned by you</span>
           )}
@@ -1000,7 +1186,7 @@ function AssetRow({
                   ))}
                 </div>
               ) : null}
-              {owner && onJumpToOwner ? (
+              {asset.contact_id && resolvedOwnerName && onJumpToOwner ? (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1013,7 +1199,7 @@ function AssetRow({
                     WebkitTapHighlightColor: 'transparent',
                   }}
                 >
-                  Open {owner.name}
+                  Open {resolvedOwnerName}
                   <ArrowUpRight size={11} aria-hidden />
                 </button>
               ) : null}
@@ -1079,7 +1265,10 @@ function PanelHeader({
           {showOfTotal ? (
             <>
               <CountUp to={count} />
-              <span className="text-faint/60"> / {total}</span>
+              <span className="text-faint/60">
+                {' / '}
+                <CountUp to={total} />
+              </span>
             </>
           ) : (
             <CountUp to={count} />
@@ -1107,9 +1296,9 @@ function PanelHeader({
 function EmptyFilterState({ onClear }: { onClear: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-8 py-16 text-center">
-      <p className="text-sm font-medium text-fg">Nothing matches.</p>
-      <p className="mt-1 max-w-[36ch] text-sm text-muted">
-        No contacts match the current filters. Try removing one.
+      <p className="text-sm font-medium text-fg">No contacts match.</p>
+      <p className="mt-1 max-w-[40ch] text-sm text-muted">
+        Remove a filter chip above to widen the search — or clear everything to start fresh.
       </p>
       <button
         type="button"
@@ -1120,7 +1309,7 @@ function EmptyFilterState({ onClear }: { onClear: () => void }) {
           WebkitTapHighlightColor: 'transparent',
         }}
       >
-        Clear filters
+        Clear all filters
       </button>
     </div>
   );
