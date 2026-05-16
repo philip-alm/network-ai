@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { MentionPill } from './MentionPill';
 
 /**
  * Markdown — assistant-text renderer.
@@ -18,12 +19,30 @@ import remarkGfm from 'remark-gfm';
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
     <div className="space-y-3 text-base leading-relaxed tracking-tight text-fg/90">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={MD_COMPONENTS}
+        urlTransform={transformUrl}
+      >
         {text}
       </ReactMarkdown>
     </div>
   );
 });
+
+/**
+ * URL transformer for react-markdown. Default sanitizer strips any
+ * scheme that isn't http/https/mailto, which would mangle our
+ * `contact:<uuid>` / `asset:<uuid>` mention links. Allow them through
+ * (the `a` override below routes them to MentionPill); for everything
+ * else, fall back to the library's default (block javascript:, data:,
+ * etc.) by rejecting unknown schemes.
+ */
+function transformUrl(url: string): string {
+  if (url.startsWith('contact:') || url.startsWith('asset:')) return url;
+  if (/^(https?:|mailto:|tel:|#|\/)/i.test(url)) return url;
+  return ''; // strip anything else (javascript:, data:, file:, …)
+}
 
 const MD_COMPONENTS: Components = {
   p: ({ children }) => <p className="whitespace-pre-wrap">{children}</p>,
@@ -47,16 +66,32 @@ const MD_COMPONENTS: Components = {
     <blockquote className="border-l-2 border-border-soft pl-3 text-muted">{children}</blockquote>
   ),
   hr: () => <hr className="border-border-soft" />,
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ href, children }) => {
+    if (href?.startsWith('contact:')) {
+      return (
+        <MentionPill kind="contact" id={href.slice('contact:'.length)}>
+          {children}
+        </MentionPill>
+      );
+    }
+    if (href?.startsWith('asset:')) {
+      return (
+        <MentionPill kind="asset" id={href.slice('asset:'.length)}>
+          {children}
+        </MentionPill>
+      );
+    }
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent"
+      >
+        {children}
+      </a>
+    );
+  },
   code: ({ className, children }) => {
     const isBlock = /language-/.test(className ?? '');
     if (isBlock) {

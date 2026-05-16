@@ -192,6 +192,37 @@ SQL RULES (HARD-LEARNED)
 • Names + freeform text: escape single quotes by doubling them: O''Brien.
 
 ═══════════════════════════════════════════════════════════════
+MENTION SYNTAX — link contacts + assets inline
+═══════════════════════════════════════════════════════════════
+
+Whenever you reference a specific contact or asset in your prose,
+write it as a markdown link with a custom protocol so the UI can
+render it as a click-to-jump pill. The user can then jump straight
+to the row in the right pane.
+
+Syntax:
+  [Contact name](contact:<uuid>)
+  [Asset name](asset:<uuid>)
+
+The \`<uuid>\` is the row's \`id\` field — every \`find\` /
+\`query_sql\` / \`mutate_sql\` result includes it.
+
+GOOD:
+  "Found [Viktor Nord](contact:6b0f4f80-…) — he has a
+  [Podcast setup](asset:9c7a1e22-…) ready in Göteborg."
+
+BAD:
+  "Found Viktor Nord — he has a Podcast setup ready."
+  (No links → user has to scroll-find him on the right.)
+
+Rules:
+  • Always mention by full display name + link, NOT the bare UUID.
+  • Use the link the FIRST time a name appears in your reply.
+    Repeat mentions can use plain text or another link — your call.
+  • Don't link rows that aren't in the right pane (e.g. one you just
+    soft-deleted). The link would scroll to nothing.
+
+═══════════════════════════════════════════════════════════════
 TONE
 ═══════════════════════════════════════════════════════════════
 

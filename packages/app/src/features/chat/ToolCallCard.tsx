@@ -1,6 +1,7 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckCircle2,
   AlertCircle,
@@ -11,6 +12,7 @@ import {
   Search,
   Database,
   ArrowUpRight,
+  ChevronDown,
 } from 'lucide-react';
 import { parseToolResult, type ToolCardKind } from '../../lib/agent';
 import { useNetworkStore } from '../../lib/store';
@@ -19,17 +21,23 @@ import type { AgentToolInvocation } from '../../lib/agent';
 /**
  * ToolCallCard — renders a single tool invocation as a structured card.
  *
- * Three shapes:
+ * Two layers:
+ *  - **Header**: compact, glanceable pill (the existing card shapes)
+ *  - **Details panel**: click to expand — shows the actual args, the
+ *    SQL or query terms, and a structured rendering of the result rows.
+ *    The pills alone are too opaque; the details panel is what makes
+ *    the chat trustworthy + auditable.
+ *
+ * Header shapes:
  *  - Running: pulsing accent dot + humanized "Searching 'X'…" text.
- *    Reads `args` so the user sees what the agent is actually doing,
- *    not a bare tool identifier.
- *  - Read (query / search): subtle inline pill with query + row count.
- *  - Action (added / updated / deleted): card with icon + verb + entity
- *    name + optional timing tail + "Jump to ↗" button.
- *  - Error: danger-tinted with the hint.
+ *  - Read (query / search / find): subtle inline pill with summary.
+ *  - Action (added / updated / deleted): card with icon + verb + name
+ *    + optional timing tail + "Jump to ↗" button.
+ *  - Error: danger-tinted with the hint (NOT expandable — already verbose).
  */
 export function ToolCallCard({ call }: { call: AgentToolInvocation }) {
   const jumpTo = useNetworkStore((s) => s.actions.jumpTo);
+  const [expanded, setExpanded] = useState(false);
   const isRunning = call.result == null;
   const parsed = !isRunning ? parseToolResult(call.name, call.args, call.result) : null;
 
@@ -51,14 +59,52 @@ export function ToolCallCard({ call }: { call: AgentToolInvocation }) {
     );
   }
 
+  const expandable = parsed != null && parsed.kind !== 'error';
+
   return (
     <motion.div
       layout="position"
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      className="space-y-1"
     >
-      <CardContent parsed={parsed} call={call} jumpTo={jumpTo} />
+      <div className="flex items-start gap-1">
+        <div className="min-w-0 flex-1">
+          <CardContent parsed={parsed} call={call} jumpTo={jumpTo} />
+        </div>
+        {expandable ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={expanded ? 'Hide details' : 'Show details'}
+            data-testid="tool-expand-toggle"
+            className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm text-faint transition-colors hover:bg-surface-soft hover:text-muted"
+          >
+            <ChevronDown
+              size={12}
+              className={`transition-transform duration-200 ease-out ${expanded ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
+          </button>
+        ) : null}
+      </div>
+
+      <AnimatePresence initial={false}>
+        {expanded && expandable ? (
+          <motion.div
+            key="details"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
+            className="overflow-hidden"
+          >
+            <ToolDetails call={call} parsed={parsed} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -99,19 +145,11 @@ function CardContent({
 
   if (parsed.kind === 'query' || parsed.kind === 'search') {
     const Icon = parsed.kind === 'search' ? Search : Database;
-    const queryText = readQueryText(call.name, call.args);
     return (
       <div className="inline-flex max-w-full items-center gap-2 rounded-md bg-surface-soft px-2.5 py-1 text-xs">
         <Icon size={12} className="shrink-0 text-muted" aria-hidden />
         <span className="text-muted">
-          {parsed.kind === 'search' ? 'Searched' : 'Queried'}
-          {queryText ? (
-            <>
-              {' '}
-              <span className="text-fg/90">&ldquo;{queryText}&rdquo;</span>
-            </>
-          ) : null}{' '}
-          ·{' '}
+          {parsed.kind === 'search' ? 'Searched' : 'Queried'} ·{' '}
           <span className="mono text-fg">
             {parsed.count} {parsed.count === 1 ? 'row' : 'rows'}
           </span>
@@ -173,7 +211,10 @@ function CardContent({
       {action.jumpId ? (
         <button
           type="button"
-          onClick={() => jumpTo(action.jumpId!)}
+          onClick={(e) => {
+            e.stopPropagation();
+            jumpTo(action.jumpId!);
+          }}
           className="inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs text-muted transition-colors hover:bg-bg hover:text-accent"
         >
           Jump to
@@ -184,12 +225,271 @@ function CardContent({
   );
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Expanded details panel: per-kind renderer for the auditable view
+// ─────────────────────────────────────────────────────────────────
+
+function ToolDetails({ call, parsed }: { call: AgentToolInvocation; parsed: ToolCardKind | null }) {
+  return (
+    <div className="mt-1 space-y-3 rounded-md border border-border-soft bg-bg/40 p-3 text-xs">
+      <ArgsBlock name={call.name} args={call.args} />
+      <ResultBlock name={call.name} result={call.result} parsed={parsed} />
+    </div>
+  );
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-1.5 text-[10px] font-mono uppercase tracking-wider text-faint">
+      {children}
+    </div>
+  );
+}
+
+function CodeBlock({ children }: { children: React.ReactNode }) {
+  return (
+    <pre className="mono overflow-x-auto rounded-sm bg-surface-soft px-2.5 py-1.5 text-[11px] leading-relaxed text-fg/85">
+      {children}
+    </pre>
+  );
+}
+
+function ArgsBlock({ name, args }: { name: string; args: unknown }) {
+  if (name === 'query_sql' || name === 'mutate_sql') {
+    const sql = ((args as { sql?: string } | undefined)?.sql ?? '').trim();
+    return (
+      <div>
+        <SectionLabel>SQL</SectionLabel>
+        <CodeBlock>{sql}</CodeBlock>
+      </div>
+    );
+  }
+  if (name === 'find') {
+    const a = (args ?? {}) as {
+      queries?: string[];
+      contains?: string;
+      regex?: string;
+      table?: string;
+      required_tags?: string[];
+      any_tags?: string[];
+      min_warmth?: number;
+      max_warmth?: number;
+      city?: string;
+      has_assets?: boolean;
+      recent_days?: number;
+      limit?: number;
+    };
+    const filterChips: Array<[string, string]> = [];
+    if (a.table) filterChips.push(['table', a.table]);
+    if (a.required_tags?.length) filterChips.push(['required_tags', a.required_tags.join(',')]);
+    if (a.any_tags?.length) filterChips.push(['any_tags', a.any_tags.join(',')]);
+    if (a.min_warmth != null) filterChips.push(['min_warmth', String(a.min_warmth)]);
+    if (a.max_warmth != null) filterChips.push(['max_warmth', String(a.max_warmth)]);
+    if (a.city) filterChips.push(['city', a.city]);
+    if (a.has_assets != null) filterChips.push(['has_assets', String(a.has_assets)]);
+    if (a.recent_days != null) filterChips.push(['recent_days', `${a.recent_days}d`]);
+    if (a.limit != null) filterChips.push(['limit', String(a.limit)]);
+
+    return (
+      <div className="space-y-2">
+        {a.queries?.length ? (
+          <div>
+            <SectionLabel>queries</SectionLabel>
+            <div className="flex flex-wrap gap-1">
+              {a.queries.map((q, i) => (
+                <span
+                  key={i}
+                  className="mono rounded-sm bg-surface-soft px-1.5 py-0.5 text-[11px] text-fg/85"
+                >
+                  {q}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {a.contains ? (
+          <div>
+            <SectionLabel>contains</SectionLabel>
+            <CodeBlock>{a.contains}</CodeBlock>
+          </div>
+        ) : null}
+        {a.regex ? (
+          <div>
+            <SectionLabel>regex</SectionLabel>
+            <CodeBlock>{a.regex}</CodeBlock>
+          </div>
+        ) : null}
+        {filterChips.length > 0 ? (
+          <div>
+            <SectionLabel>filters</SectionLabel>
+            <div className="flex flex-wrap gap-1">
+              {filterChips.map(([k, v]) => (
+                <span
+                  key={k}
+                  className="mono inline-flex items-baseline gap-1 rounded-sm bg-surface-soft px-1.5 py-0.5 text-[11px]"
+                >
+                  <span className="text-faint">{k}:</span>
+                  <span className="text-fg/85">{v}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+  return null;
+}
+
+function ResultBlock({
+  result,
+  parsed,
+}: {
+  name: string;
+  result: unknown;
+  parsed: ToolCardKind | null;
+}) {
+  if (!parsed) return null;
+
+  if (parsed.kind === 'find') {
+    const data = (
+      result as { data?: { contacts?: ContactHit[]; assets?: AssetHit[]; debug?: unknown } } | null
+    )?.data;
+    return (
+      <div className="space-y-3">
+        {data?.contacts && data.contacts.length > 0 ? (
+          <div>
+            <SectionLabel>contacts · {data.contacts.length}</SectionLabel>
+            <ul className="space-y-0.5">
+              {data.contacts.map((c) => (
+                <HitRow
+                  key={c.id}
+                  name={c.name}
+                  meta={[c.warmth != null ? `warmth ${c.warmth}` : null, c.city]}
+                  matched={c._matched}
+                  score={c._score}
+                />
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {data?.assets && data.assets.length > 0 ? (
+          <div>
+            <SectionLabel>assets · {data.assets.length}</SectionLabel>
+            <ul className="space-y-0.5">
+              {data.assets.map((a) => (
+                <HitRow
+                  key={a.id}
+                  name={a.name}
+                  meta={[a.availability ?? null, a._contact_name ? `→ ${a._contact_name}` : null]}
+                  matched={a._matched}
+                  score={a._score}
+                />
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {data?.debug ? (
+          <div>
+            <SectionLabel>debug</SectionLabel>
+            <CodeBlock>{JSON.stringify(data.debug, null, 2)}</CodeBlock>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (parsed.kind === 'query' || parsed.kind === 'search') {
+    const data = (result as { data?: { rows?: unknown } } | null)?.data;
+    const rows = Array.isArray(data)
+      ? data
+      : ((data as { rows?: unknown[] } | undefined)?.rows ?? []);
+    return (
+      <div>
+        <SectionLabel>rows · {Array.isArray(rows) ? rows.length : 0}</SectionLabel>
+        <CodeBlock>{JSON.stringify(rows, null, 2)}</CodeBlock>
+      </div>
+    );
+  }
+
+  // Action cards: just show the affected row dump as JSON
+  if (
+    parsed.kind === 'contact_added' ||
+    parsed.kind === 'contact_updated' ||
+    parsed.kind === 'contact_deleted'
+  ) {
+    return (
+      <div>
+        <SectionLabel>row</SectionLabel>
+        <CodeBlock>{JSON.stringify(parsed.contact, null, 2)}</CodeBlock>
+      </div>
+    );
+  }
+  if (
+    parsed.kind === 'asset_added' ||
+    parsed.kind === 'asset_updated' ||
+    parsed.kind === 'asset_deleted'
+  ) {
+    return (
+      <div>
+        <SectionLabel>row</SectionLabel>
+        <CodeBlock>{JSON.stringify(parsed.asset, null, 2)}</CodeBlock>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function HitRow({
+  name,
+  meta,
+  matched,
+  score,
+}: {
+  name: string;
+  meta: Array<string | null>;
+  matched?: string[];
+  score?: number;
+}) {
+  const metaText = meta.filter(Boolean).join(' · ');
+  return (
+    <li className="flex items-baseline gap-2 truncate text-fg/90">
+      <span className="font-medium">{name}</span>
+      {metaText ? <span className="truncate text-muted">{metaText}</span> : null}
+      {matched && matched.length > 0 ? (
+        <span className="mono shrink-0 text-faint">[{matched.join(',')}]</span>
+      ) : null}
+      {score != null ? (
+        <span className="mono ml-auto shrink-0 text-faint">{score.toFixed(2)}</span>
+      ) : null}
+    </li>
+  );
+}
+
+type ContactHit = {
+  id: string;
+  name: string;
+  warmth: number | null;
+  city: string | null;
+  _score?: number;
+  _matched?: string[];
+};
+
+type AssetHit = {
+  id: string;
+  name: string;
+  availability: string | null;
+  _contact_name?: string;
+  _score?: number;
+  _matched?: string[];
+};
+
 /**
  * Humanize a running tool call into "Searching 'foo'…" / "Writing…" style.
  *
- * For search_* we pluck the `query` arg; for mutate_sql we read the first
- * verb of the SQL to disambiguate insert / update / delete (so the user
- * doesn't see `mutate_sql` flashing through).
+ * For find we pluck the candidate terms; for mutate_sql we read the first
+ * verb of the SQL to disambiguate insert / update / delete.
  */
 function runningCopy(name: string, args: unknown): string {
   if (name === 'find') {
@@ -220,11 +520,6 @@ function runningCopy(name: string, args: unknown): string {
     return 'Writing…';
   }
   return `${name}…`;
-}
-
-function readQueryText(_name: string, _args: unknown): string | null {
-  // find-style cards build their own preview line; nothing extra to surface here.
-  return null;
 }
 
 function truncate(s: string, max: number): string {
